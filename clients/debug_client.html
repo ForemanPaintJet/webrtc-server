@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug WebRTC Client</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            margin: 0;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .panel {
+            background: #252526;
+            border: 1px solid #3e3e3e;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        
+        .header {
+            grid-column: 1 / -1;
+            text-align: center;
+            background: #0e639c;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        h2 {
+            margin: 0 0 15px 0;
+            color: #569cd6;
+            border-bottom: 1px solid #3e3e3e;
+            padding-bottom: 10px;
+        }
+        
+        .controls {
+            margin-bottom: 20px;
+        }
+        
+        input, button, select {
+            display: block;
+            width: 100%;
+            margin: 8px 0;
+            padding: 8px;
+            border: 1px solid #3e3e3e;
+            border-radius: 4px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            font-family: inherit;
+            font-size: 14px;
+        }
+        
+        button {
+            background: #0e639c;
+            color: white;
+            cursor: pointer;
+            border: 1px solid #0e639c;
+        }
+        
+        button:hover {
+            background: #1177bb;
+        }
+        
+        button:disabled {
+            background: #3e3e3e;
+            color: #666;
+            cursor: not-allowed;
+        }
+        
+        .btn-danger {
+            background: #f44747;
+            border-color: #f44747;
+        }
+        
+        .btn-danger:hover {
+            background: #ff6b6b;
+        }
+        
+        video {
+            width: 100%;
+            height: 200px;
+            background: #000;
+            border: 1px solid #3e3e3e;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        
+        .log-container {
+            height: 300px;
+            overflow-y: auto;
+            background: #0f0f0f;
+            border: 1px solid #3e3e3e;
+            border-radius: 4px;
+            padding: 10px;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+        
+        .log-info { color: #4fc3f7; }
+        .log-error { color: #f44747; background: rgba(244, 71, 71, 0.1); }
+        .log-success { color: #4caf50; background: rgba(76, 175, 80, 0.1); }
+        .log-warn { color: #ff9800; background: rgba(255, 152, 0, 0.1); }
+        
+        .stats-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        
+        .stat-box {
+            background: #0f0f0f;
+            border: 1px solid #3e3e3e;
+            border-radius: 4px;
+            padding: 8px;
+            font-size: 12px;
+        }
+        
+        .stat-label {
+            color: #9cdcfe;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .stat-value {
+            color: #ce9178;
+            font-family: monospace;
+        }
+        
+        .timestamp {
+            color: #6a6a6a;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔍 Debug WebRTC Client</h1>
+        <p>Detailed logging and debugging for WebRTC connections</p>
+    </div>
+    
+    <div class="container">
+        <div class="panel">
+            <h2>Connection Setup</h2>
+            <div class="controls">
+                <input type="text" id="serverUrl" value="http://localhost:5001" placeholder="Server URL">
+                <input type="text" id="roomName" value="debug-room" placeholder="Room Name">
+                
+                <label>Video Quality:</label>
+                <select id="videoQuality">
+                    <option value="low">Low (320x240)</option>
+                    <option value="medium" selected>Medium (640x480)</option>
+                    <option value="high">High (1280x720)</option>
+                </select>
+                
+                <button id="connectBtn" onclick="connect()">🔗 Connect & Debug</button>
+                <button id="disconnectBtn" onclick="disconnect()" class="btn-danger" disabled>❌ Disconnect</button>
+                <button onclick="clearLogs()">🗑️ Clear Logs</button>
+                <button onclick="downloadLogs()">💾 Download Logs</button>
+            </div>
+            
+            <h2>Video Streams</h2>
+            <div>
+                <label>Local Video (You):</label>
+                <video id="localVideo" autoplay muted playsinline></video>
+                
+                <label>Remote Video (Peer):</label>
+                <video id="remoteVideo" autoplay playsinline></video>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h2>Debug Console</h2>
+            <div class="log-container" id="debugLog"></div>
+            
+            <h2>Connection Statistics</h2>
+            <div class="stats-container" id="statsContainer">
+                <div class="stat-box">
+                    <div class="stat-label">Connection State</div>
+                    <div class="stat-value" id="connectionState">disconnected</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">ICE State</div>
+                    <div class="stat-value" id="iceState">new</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Signaling State</div>
+                    <div class="stat-value" id="signalingState">stable</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Bytes Sent</div>
+                    <div class="stat-value" id="bytesSent">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Bytes Received</div>
+                    <div class="stat-value" id="bytesReceived">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Round Trip Time</div>
+                    <div class="stat-value" id="roundTripTime">0 ms</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        let socket = null;
+        let localStream = null;
+        let peerConnection = null;
+        let isConnected = false;
+        let statsInterval = null;
+        let logEntries = [];
+
+        const servers = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ]
+        };
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = { timestamp, message, type };
+            logEntries.push(entry);
+            
+            const logContainer = document.getElementById('debugLog');
+            const logElement = document.createElement('div');
+            logElement.className = `log-entry log-${type}`;
+            logElement.innerHTML = `
+                <span class="timestamp">[${timestamp}]</span> ${message}
+            `;
+            
+            logContainer.appendChild(logElement);
+            logContainer.scrollTop = logContainer.scrollHeight;
+            
+            console.log(`[WebRTC Debug] ${message}`);
+        }
+
+        function clearLogs() {
+            document.getElementById('debugLog').innerHTML = '';
+            logEntries = [];
+            log('Debug logs cleared', 'info');
+        }
+
+        function downloadLogs() {
+            const logText = logEntries.map(entry => 
+                `[${entry.timestamp}] ${entry.type.toUpperCase()}: ${entry.message}`
+            ).join('\n');
+            
+            const blob = new Blob([logText], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `webrtc-debug-${new Date().toISOString().slice(0,19)}.log`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            log('Debug logs downloaded', 'success');
+        }
+
+        function getVideoConstraints() {
+            const quality = document.getElementById('videoQuality').value;
+            const constraints = {
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                }
+            };
+
+            switch (quality) {
+                case 'low':
+                    constraints.video = { width: 320, height: 240, frameRate: 15 };
+                    break;
+                case 'high':
+                    constraints.video = { width: 1280, height: 720, frameRate: 30 };
+                    break;
+                default:
+                    constraints.video = { width: 640, height: 480, frameRate: 24 };
+            }
+
+            return constraints;
+        }
+
+        async function connect() {
+            try {
+                const serverUrl = document.getElementById('serverUrl').value;
+                const roomName = document.getElementById('roomName').value;
+
+                if (!serverUrl || !roomName) {
+                    log('Server URL and room name are required', 'error');
+                    return;
+                }
+
+                log(`Starting connection to ${serverUrl}`, 'info');
+                log(`Room: ${roomName}`, 'info');
+
+                const constraints = getVideoConstraints();
+                log(`Video constraints: ${JSON.stringify(constraints.video)}`, 'info');
+
+                log('Requesting media access...', 'info');
+                localStream = await navigator.mediaDevices.getUserMedia(constraints);
+                
+                const videoTrack = localStream.getVideoTracks()[0];
+                const audioTrack = localStream.getAudioTracks()[0];
+                
+                log(`Video track: ${videoTrack.label} (${videoTrack.getSettings().width}x${videoTrack.getSettings().height})`, 'success');
+                log(`Audio track: ${audioTrack.label}`, 'success');
+                
+                document.getElementById('localVideo').srcObject = localStream;
+
+                log('Initializing Socket.IO connection...', 'info');
+                socket = io(serverUrl);
+
+                socket.on('connect', () => {
+                    log(`Connected to server with ID: ${socket.id}`, 'success');
+                    socket.emit('join_room', { room: roomName });
+                });
+
+                socket.on('user_joined', async (data) => {
+                    log(`User joined: ${data.user_id}`, 'info');
+                    log('Creating peer connection as caller...', 'info');
+                    await createPeerConnection();
+                    
+                    const offer = await peerConnection.createOffer({
+                        offerToReceiveAudio: true,
+                        offerToReceiveVideo: true
+                    });
+                    
+                    await peerConnection.setLocalDescription(offer);
+                    log(`Created offer: ${offer.type}`, 'success');
+                    socket.emit('offer', { offer: offer, room: roomName });
+                });
+
+                socket.on('offer', async (data) => {
+                    log(`Received offer from peer`, 'info');
+                    await createPeerConnection();
+                    
+                    await peerConnection.setRemoteDescription(data.offer);
+                    log('Set remote description (offer)', 'success');
+                    
+                    const answer = await peerConnection.createAnswer();
+                    await peerConnection.setLocalDescription(answer);
+                    log(`Created answer: ${answer.type}`, 'success');
+                    socket.emit('answer', { answer: answer, room: roomName });
+                });
+
+                socket.on('answer', async (data) => {
+                    log(`Received answer from peer`, 'info');
+                    await peerConnection.setRemoteDescription(data.answer);
+                    log('Set remote description (answer)', 'success');
+                });
+
+                socket.on('ice_candidate', async (data) => {
+                    if (peerConnection && data.candidate) {
+                        await peerConnection.addIceCandidate(data.candidate);
+                        log(`Added ICE candidate: ${data.candidate.candidate.split(' ')[2]}`, 'info');
+                    }
+                });
+
+                socket.on('user_left', () => {
+                    log('Peer disconnected', 'warn');
+                    if (peerConnection) {
+                        peerConnection.close();
+                        peerConnection = null;
+                    }
+                    document.getElementById('remoteVideo').srcObject = null;
+                    stopStatsCollection();
+                });
+
+                socket.on('disconnect', () => {
+                    log('Disconnected from signaling server', 'error');
+                    isConnected = false;
+                    toggleButtons();
+                    stopStatsCollection();
+                });
+
+                socket.on('connect_error', (error) => {
+                    log(`Connection error: ${error.message}`, 'error');
+                });
+
+                isConnected = true;
+                toggleButtons();
+
+            } catch (error) {
+                log(`Connection failed: ${error.message}`, 'error');
+                console.error('Connection error:', error);
+            }
+        }
+
+        async function createPeerConnection() {
+            log('Creating RTCPeerConnection...', 'info');
+            peerConnection = new RTCPeerConnection(servers);
+
+            // Add local stream
+            localStream.getTracks().forEach(track => {
+                peerConnection.addTrack(track, localStream);
+                log(`Added ${track.kind} track to peer connection`, 'info');
+            });
+
+            // Handle remote stream
+            peerConnection.ontrack = (event) => {
+                log(`Received remote ${event.track.kind} track`, 'success');
+                document.getElementById('remoteVideo').srcObject = event.streams[0];
+                startStatsCollection();
+            };
+
+            // Handle ICE candidates
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    const candidate = event.candidate.candidate;
+                    const type = candidate.includes('typ host') ? 'host' : 
+                                candidate.includes('typ srflx') ? 'srflx' : 
+                                candidate.includes('typ relay') ? 'relay' : 'unknown';
+                    log(`Generated ICE candidate (${type}): ${candidate.split(' ')[2]}`, 'info');
+                    
+                    socket.emit('ice_candidate', { 
+                        candidate: event.candidate, 
+                        room: document.getElementById('roomName').value 
+                    });
+                } else {
+                    log('ICE candidate gathering complete', 'success');
+                }
+            };
+
+            // State change handlers
+            peerConnection.onconnectionstatechange = () => {
+                const state = peerConnection.connectionState;
+                log(`Connection state: ${state}`, state === 'connected' ? 'success' : 'info');
+                document.getElementById('connectionState').textContent = state;
+            };
+
+            peerConnection.oniceconnectionstatechange = () => {
+                const state = peerConnection.iceConnectionState;
+                log(`ICE connection state: ${state}`, state === 'connected' ? 'success' : 'info');
+                document.getElementById('iceState').textContent = state;
+            };
+
+            peerConnection.onsignalingstatechange = () => {
+                const state = peerConnection.signalingState;
+                log(`Signaling state: ${state}`, 'info');
+                document.getElementById('signalingState').textContent = state;
+            };
+
+            peerConnection.onicegatheringstatechange = () => {
+                const state = peerConnection.iceGatheringState;
+                log(`ICE gathering state: ${state}`, 'info');
+            };
+
+            log('RTCPeerConnection created successfully', 'success');
+        }
+
+        function startStatsCollection() {
+            if (statsInterval) clearInterval(statsInterval);
+            
+            statsInterval = setInterval(async () => {
+                if (peerConnection) {
+                    try {
+                        const stats = await peerConnection.getStats();
+                        let bytesSent = 0, bytesReceived = 0, rtt = 0;
+
+                        stats.forEach(report => {
+                            if (report.type === 'outbound-rtp' && report.mediaType === 'video') {
+                                bytesSent += report.bytesSent || 0;
+                            }
+                            if (report.type === 'inbound-rtp' && report.mediaType === 'video') {
+                                bytesReceived += report.bytesReceived || 0;
+                            }
+                            if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+                                rtt = report.currentRoundTripTime * 1000 || 0;
+                            }
+                        });
+
+                        document.getElementById('bytesSent').textContent = formatBytes(bytesSent);
+                        document.getElementById('bytesReceived').textContent = formatBytes(bytesReceived);
+                        document.getElementById('roundTripTime').textContent = `${rtt.toFixed(1)} ms`;
+
+                    } catch (error) {
+                        log(`Stats collection error: ${error.message}`, 'error');
+                    }
+                }
+            }, 1000);
+        }
+
+        function stopStatsCollection() {
+            if (statsInterval) {
+                clearInterval(statsInterval);
+                statsInterval = null;
+            }
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function disconnect() {
+            log('Initiating disconnect...', 'info');
+            
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+                log('Socket disconnected', 'info');
+            }
+            
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+                log('Peer connection closed', 'info');
+            }
+            
+            if (localStream) {
+                localStream.getTracks().forEach(track => {
+                    track.stop();
+                    log(`Stopped ${track.kind} track`, 'info');
+                });
+                localStream = null;
+            }
+            
+            document.getElementById('localVideo').srcObject = null;
+            document.getElementById('remoteVideo').srcObject = null;
+            
+            stopStatsCollection();
+            
+            // Reset stats display
+            document.getElementById('connectionState').textContent = 'disconnected';
+            document.getElementById('iceState').textContent = 'new';
+            document.getElementById('signalingState').textContent = 'stable';
+            document.getElementById('bytesSent').textContent = '0 B';
+            document.getElementById('bytesReceived').textContent = '0 B';
+            document.getElementById('roundTripTime').textContent = '0 ms';
+            
+            isConnected = false;
+            toggleButtons();
+            log('Disconnect complete', 'success');
+        }
+
+        function toggleButtons() {
+            document.getElementById('connectBtn').disabled = isConnected;
+            document.getElementById('disconnectBtn').disabled = !isConnected;
+        }
+
+        // Initialize
+        log('Debug WebRTC Client initialized', 'success');
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', disconnect);
+    </script>
+</body>
+</html>
