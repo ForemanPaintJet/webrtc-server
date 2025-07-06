@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC Client with OAK Camera Support</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            margin: 20px auto;
+            max-width: 1200px;
+            backdrop-filter: blur(10px);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        h3 {
+            color: #555;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+
+        button {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .oak-button {
+            background: linear-gradient(45deg, #ff9800, #f57c00) !important;
+        }
+
+        .oak-button:hover:not(:disabled) {
+            background: linear-gradient(45deg, #f57c00, #e65100) !important;
+        }
+
+        .oak-button.active {
+            background: linear-gradient(45deg, #4CAF50, #45a049) !important;
+        }
+
+        select,
+        input[type="text"],
+        input[type="number"] {
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        select:focus,
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .video-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .video-wrapper {
+            text-align: center;
+        }
+
+        .video-wrapper h4 {
+            margin: 10px 0 5px 0;
+            color: #555;
+        }
+
+        video {
+            width: 100%;
+            max-width: 640px;
+            height: auto;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            background: #000;
+        }
+
+        .status {
+            text-align: center;
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .status.connected {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+        }
+
+        .status.disconnected {
+            background: linear-gradient(45deg, #f44336, #da190b);
+            color: white;
+        }
+
+        .status.connecting {
+            background: linear-gradient(45deg, #ff9800, #f57c00);
+            color: white;
+        }
+
+        .oak-status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border: 2px solid #ff9800;
+            background: rgba(255, 152, 0, 0.1);
+            text-align: center;
+        }
+
+        .oak-status.connected {
+            border-color: #4CAF50;
+            background: rgba(76, 175, 80, 0.1);
+        }
+
+        .oak-status.error {
+            border-color: #f44336;
+            background: rgba(244, 67, 54, 0.1);
+        }
+
+        .logs {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .video-container {
+                grid-template-columns: 1fr;
+            }
+
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .controls>* {
+                width: 100%;
+                margin-bottom: 10px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🎥 WebRTC with OAK Camera</h1>
+
+        <!-- Connection Status -->
+        <div id="status" class="status disconnected">
+            Not connected to signaling server
+        </div>
+
+        <!-- Room Controls -->
+        <div class="controls">
+            <input type="text" id="roomInput" placeholder="Enter room name" value="oak-room">
+            <button onclick="connectToServer()">Connect to Server</button>
+            <button onclick="joinRoom()" id="joinBtn" disabled>Join Room</button>
+            <button onclick="leaveRoom()" id="leaveBtn" disabled>Leave Room</button>
+        </div>
+
+        <!-- Camera Selection -->
+        <h3>📹 Camera Selection</h3>
+        <div class="controls">
+            <select id="cameraSelect" style="width: 300px;">
+                <option value="">Choose regular camera...</option>
+            </select>
+            <button onclick="useRegularCamera()" id="regularCameraBtn" disabled>📱 Use Regular Camera</button>
+            <button onclick="toggleOAKCamera()" id="oakCameraBtn" class="oak-button" disabled>🔶 Connect OAK
+                Camera</button>
+            <button onclick="detectCameras()">🔍 Detect Cameras</button>
+        </div>
+
+        <!-- OAK Status -->
+        <div id="oakStatus" class="oak-status" style="display: none;">
+            <strong>🔶 OAK Camera Status:</strong> <span id="oakStatusText">Disconnected</span>
+        </div>
+
+        <!-- Media Controls -->
+        <div class="controls">
+            <button onclick="startVideo()" id="startBtn" disabled>Start Video</button>
+            <button onclick="stopVideo()" id="stopBtn" disabled>Stop Video</button>
+            <button onclick="toggleMute()" id="muteBtn" disabled>🔇 Mute</button>
+        </div>
+
+        <!-- Video Display -->
+        <div class="video-container">
+            <div class="video-wrapper">
+                <h4>Local Video (You)</h4>
+                <video id="localVideo" autoplay muted playsinline></video>
+            </div>
+            <div class="video-wrapper">
+                <h4>Remote Video (Peer)</h4>
+                <video id="remoteVideo" autoplay playsinline></video>
+            </div>
+        </div>
+
+        <!-- Logs -->
+        <h3>📋 Connection Logs</h3>
+        <div id="logs" class="logs"></div>
+        <button onclick="clearLogs()">Clear Logs</button>
+    </div>
+
+    <!-- Hidden canvas for OAK frames -->
+    <canvas id="oakCanvas" style="display: none;"></canvas>
+
+    <script>
+        // Global variables
+        let signalingWs = null;
+        let oakWs = null;
+        let localStream = null;
+        let remoteStream = null;
+        let peerConnection = null;
+        let currentRoom = null;
+        let isConnectedToServer = false;
+        let isInRoom = false;
+        let availableCameras = [];
+        let isOAKConnected = false;
+        let isOAKActive = false;
+        let isMuted = false;
+
+        // Canvas for OAK camera frames
+        let oakCanvas = null;
+        let oakCtx = null;
+        let frameCount = 0;
+        let lastFrameTime = 0;
+
+        // WebRTC configuration
+        const rtcConfig = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ]
+        };
+
+        // Initialize when page loads
+        window.onload = function () {
+            log('🚀 WebRTC with OAK Camera loaded');
+            oakCanvas = document.getElementById('oakCanvas');
+            oakCtx = oakCanvas.getContext('2d');
+            detectCameras();
+            checkOAKAvailability();
+        };
+
+        // Logging function
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logMessage = `[${timestamp}] ${message}`;
+            console.log(logMessage);
+
+            const logsEl = document.getElementById('logs');
+            logsEl.innerHTML += logMessage + '\n';
+            logsEl.scrollTop = logsEl.scrollHeight;
+        }
+
+        // Update connection status
+        function updateStatus(message, type) {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+        }
+
+        // Update button states
+        function updateButtons() {
+            document.getElementById('joinBtn').disabled = !isConnectedToServer;
+            document.getElementById('leaveBtn').disabled = !isInRoom;
+            document.getElementById('startBtn').disabled = !isInRoom || localStream !== null;
+            document.getElementById('stopBtn').disabled = localStream === null;
+            document.getElementById('muteBtn').disabled = localStream === null;
+            document.getElementById('regularCameraBtn').disabled = availableCameras.length === 0;
+        }
+
+        // Connect to signaling server
+        function connectToServer() {
+            if (signalingWs) {
+                signalingWs.close();
+            }
+
+            log('🔗 Connecting to signaling server...');
+            updateStatus('Connecting to server...', 'connecting');
+
+            signalingWs = new WebSocket('ws://localhost:8765');
+
+            signalingWs.onopen = function () {
+                log('✅ Connected to signaling server');
+                updateStatus('Connected to signaling server', 'connected');
+                isConnectedToServer = true;
+                updateButtons();
+            };
+
+            signalingWs.onmessage = function (event) {
+                const message = JSON.parse(event.data);
+                handleSignalingMessage(message);
+            };
+
+            signalingWs.onclose = function () {
+                log('❌ Disconnected from signaling server');
+                updateStatus('Disconnected from signaling server', 'disconnected');
+                isConnectedToServer = false;
+                isInRoom = false;
+                updateButtons();
+            };
+
+            signalingWs.onerror = function (error) {
+                log(`❌ Signaling server error: ${error}`);
+                updateStatus('Connection error', 'disconnected');
+            };
+        }
+
+        // Handle signaling messages
+        function handleSignalingMessage(message) {
+            log(`📥 Received: ${message.type}`);
+
+            switch (message.type) {
+                case 'room_joined':
+                    isInRoom = true;
+                    currentRoom = message.room;
+                    log(`🏠 Joined room: ${currentRoom}`);
+                    updateButtons();
+                    break;
+
+                case 'room_left':
+                    isInRoom = false;
+                    currentRoom = null;
+                    log('🚪 Left room');
+                    updateButtons();
+                    break;
+
+                case 'user_joined':
+                    log(`👥 User joined: ${message.user_id}`);
+                    if (localStream && peerConnection) {
+                        createOffer();
+                    }
+                    break;
+
+                case 'user_left':
+                    log(`👋 User left: ${message.user_id}`);
+                    if (peerConnection) {
+                        peerConnection.close();
+                        peerConnection = null;
+                        document.getElementById('remoteVideo').srcObject = null;
+                    }
+                    break;
+
+                case 'offer':
+                    handleOffer(message.offer);
+                    break;
+
+                case 'answer':
+                    handleAnswer(message.answer);
+                    break;
+
+                case 'ice_candidate':
+                    handleIceCandidate(message.candidate);
+                    break;
+
+                default:
+                    log(`❓ Unknown message type: ${message.type}`);
+            }
+        }
+
+        // Room management
+        function joinRoom() {
+            const room = document.getElementById('roomInput').value.trim();
+            if (!room) {
+                alert('Please enter a room name');
+                return;
+            }
+
+            if (!isConnectedToServer) {
+                alert('Please connect to server first');
+                return;
+            }
+
+            signalingWs.send(JSON.stringify({
+                type: 'join_room',
+                room: room
+            }));
+
+            log(`🏠 Joining room: ${room}`);
+        }
+
+        function leaveRoom() {
+            if (!isInRoom) return;
+
+            signalingWs.send(JSON.stringify({
+                type: 'leave_room'
+            }));
+
+            // Clean up
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+
+            document.getElementById('remoteVideo').srcObject = null;
+            log('🚪 Leaving room');
+        }
+
+        // Camera detection
+        async function detectCameras() {
+            try {
+                log('🔍 Detecting cameras...');
+
+                // Request permission first
+                try {
+                    const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    tempStream.getTracks().forEach(track => track.stop());
+                } catch (e) {
+                    log('⚠️ Camera permission needed');
+                }
+
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                availableCameras = devices.filter(device => device.kind === 'videoinput');
+
+                const select = document.getElementById('cameraSelect');
+                select.innerHTML = '<option value="">Choose regular camera...</option>';
+
+                availableCameras.forEach((camera, index) => {
+                    const option = document.createElement('option');
+                    option.value = camera.deviceId;
+                    option.textContent = camera.label || `Camera ${index + 1}`;
+                    select.appendChild(option);
+                });
+
+                log(`✅ Found ${availableCameras.length} regular camera(s)`);
+                updateButtons();
+
+            } catch (error) {
+                log(`❌ Error detecting cameras: ${error}`);
+            }
+        }
+
+        // Check OAK camera availability
+        function checkOAKAvailability() {
+            log('🔶 Checking OAK camera availability...');
+
+            const testWs = new WebSocket('ws://localhost:8766');
+
+            testWs.onopen = function () {
+                log('✅ OAK camera bridge is available');
+                document.getElementById('oakCameraBtn').disabled = false;
+                updateOAKStatus('Available (Click to connect)');
+                testWs.close();
+            };
+
+            testWs.onerror = function () {
+                log('❌ OAK camera bridge not available');
+                updateOAKStatus('Not available - Start bridge server', 'error');
+                document.getElementById('oakCameraBtn').disabled = true;
+            };
+        }
+
+        // OAK camera functions
+        function toggleOAKCamera() {
+            if (isOAKConnected) {
+                disconnectOAK();
+            } else {
+                connectOAK();
+            }
+        }
+
+        function connectOAK() {
+            log('🔶 Connecting to OAK camera...');
+            updateOAKStatus('Connecting...', 'connecting');
+
+            oakWs = new WebSocket('ws://localhost:8766');
+
+            oakWs.onopen = function () {
+                log('✅ Connected to OAK camera bridge');
+                isOAKConnected = true;
+                frameCount = 0;
+                lastFrameTime = Date.now();
+                updateOAKStatus('Connected (1280x720@30fps)', 'connected');
+                document.getElementById('oakCameraBtn').textContent = '🔶 Disconnect OAK';
+                document.getElementById('oakCameraBtn').classList.add('active');
+            };
+
+            oakWs.onmessage = function (event) {
+                if (event.data instanceof Blob) {
+                    if (isOAKActive) {
+                        displayOAKFrame(event.data);
+                    }
+                } else {
+                    // Handle JSON messages (connection info, etc.)
+                    try {
+                        const data = JSON.parse(event.data);
+                        if (data.type === 'connected') {
+                            log(`🔶 OAK Bridge: ${data.message}`);
+                            updateOAKStatus(`Connected (${data.resolution}@${data.fps}fps)`, 'connected');
+                        }
+                    } catch (e) {
+                        // Ignore non-JSON messages
+                    }
+                }
+            };
+
+            oakWs.onclose = function () {
+                log('🔌 OAK camera disconnected');
+                disconnectOAK();
+            };
+
+            oakWs.onerror = function (error) {
+                log(`❌ OAK camera error: ${error}`);
+                updateOAKStatus('Connection error', 'error');
+                disconnectOAK();
+            };
+        }
+
+        function disconnectOAK() {
+            if (oakWs) {
+                oakWs.close();
+                oakWs = null;
+            }
+
+            isOAKConnected = false;
+            isOAKActive = false;
+            updateOAKStatus('Disconnected');
+            document.getElementById('oakCameraBtn').textContent = '🔶 Connect OAK Camera';
+            document.getElementById('oakCameraBtn').classList.remove('active');
+
+            // Stop using OAK stream
+            if (localStream && localStream.id === 'oak-stream') {
+                stopVideo();
+            }
+        }
+
+        function displayOAKFrame(blob) {
+            if (!isOAKActive) return; // Safety check
+
+            const img = new Image();
+
+            img.onload = function () {
+                // Update canvas size if needed
+                if (oakCanvas.width !== img.width || oakCanvas.height !== img.height) {
+                    oakCanvas.width = img.width;
+                    oakCanvas.height = img.height;
+                    log(`🔶 Canvas resized to ${img.width}x${img.height}`);
+                }
+
+                // Draw frame to canvas
+                oakCtx.drawImage(img, 0, 0);
+                URL.revokeObjectURL(img.src);
+
+                // Frame rate monitoring
+                frameCount++;
+                const now = Date.now();
+                if (now - lastFrameTime > 5000) { // Report every 5 seconds
+                    const fps = (frameCount / ((now - lastFrameTime) / 1000)).toFixed(1);
+                    log(`🎬 OAK frames: ${fps} FPS (${frameCount} frames)`);
+                    frameCount = 0;
+                    lastFrameTime = now;
+                }
+            };
+
+            img.onerror = function () {
+                log('❌ Error loading OAK frame');
+                URL.revokeObjectURL(img.src);
+            };
+
+            img.src = URL.createObjectURL(blob);
+        }
+
+        function updateOAKStatus(status, state = '') {
+            const statusEl = document.getElementById('oakStatusText');
+            const containerEl = document.getElementById('oakStatus');
+
+            statusEl.textContent = status;
+            containerEl.style.display = 'block';
+
+            containerEl.className = 'oak-status';
+            if (state) {
+                containerEl.classList.add(state);
+            }
+        }
+
+        // Regular camera functions
+        async function useRegularCamera() {
+            try {
+                const selectedCamera = document.getElementById('cameraSelect').value;
+
+                if (!selectedCamera) {
+                    alert('Please select a camera first');
+                    return;
+                }
+
+                log('📱 Starting regular camera...');
+
+                // Stop OAK if active
+                if (isOAKActive) {
+                    isOAKActive = false;
+                }
+
+                const constraints = {
+                    video: {
+                        deviceId: { exact: selectedCamera },
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        frameRate: { ideal: 30 }
+                    },
+                    audio: true
+                };
+
+                if (localStream) {
+                    localStream.getTracks().forEach(track => track.stop());
+                }
+
+                localStream = await navigator.mediaDevices.getUserMedia(constraints);
+                localStream.id = 'regular-camera';
+
+                document.getElementById('localVideo').srcObject = localStream;
+
+                log('✅ Regular camera started');
+                updateButtons();
+
+            } catch (error) {
+                log(`❌ Error starting regular camera: ${error}`);
+                alert('Error starting camera: ' + error.message);
+            }
+        }
+
+        // Video control functions
+        async function startVideo() {
+            try {
+                if (isOAKConnected && !localStream) {
+                    // Use OAK camera
+                    log('🔶 Starting with OAK camera...');
+                    isOAKActive = true;
+
+                    // Create stream from canvas
+                    const canvasStream = oakCanvas.captureStream(30);
+
+                    // Add audio
+                    const audioStream = await navigator.mediaDevices.getUserMedia({
+                        audio: true,
+                        video: false
+                    });
+
+                    localStream = new MediaStream([
+                        ...canvasStream.getVideoTracks(),
+                        ...audioStream.getAudioTracks()
+                    ]);
+
+                    localStream.id = 'oak-stream';
+                    document.getElementById('localVideo').srcObject = localStream;
+
+                    log('✅ OAK camera stream ready');
+
+                } else if (!localStream) {
+                    alert('Please connect a camera first (regular or OAK)');
+                    return;
+                }
+
+                // Create peer connection if needed
+                if (isInRoom && !peerConnection) {
+                    createPeerConnection();
+                }
+
+                updateButtons();
+
+            } catch (error) {
+                log(`❌ Error starting video: ${error}`);
+                alert('Error starting video: ' + error.message);
+            }
+        }
+
+        function stopVideo() {
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+                document.getElementById('localVideo').srcObject = null;
+            }
+
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+
+            document.getElementById('remoteVideo').srcObject = null;
+            isOAKActive = false;
+
+            log('🛑 Video stopped');
+            updateButtons();
+        }
+
+        function toggleMute() {
+            if (localStream) {
+                const audioTrack = localStream.getAudioTracks()[0];
+                if (audioTrack) {
+                    audioTrack.enabled = !audioTrack.enabled;
+                    isMuted = !audioTrack.enabled;
+                    document.getElementById('muteBtn').textContent = isMuted ? '🔊 Unmute' : '🔇 Mute';
+                    log(`🔊 Audio ${isMuted ? 'muted' : 'unmuted'}`);
+                }
+            }
+        }
+
+        // WebRTC functions
+        function createPeerConnection() {
+            peerConnection = new RTCPeerConnection(rtcConfig);
+
+            // Add local stream
+            if (localStream) {
+                localStream.getTracks().forEach(track => {
+                    peerConnection.addTrack(track, localStream);
+                });
+            }
+
+            // Handle remote stream
+            peerConnection.ontrack = function (event) {
+                log('📺 Received remote stream');
+                remoteStream = event.streams[0];
+                document.getElementById('remoteVideo').srcObject = remoteStream;
+            };
+
+            // Handle ICE candidates
+            peerConnection.onicecandidate = function (event) {
+                if (event.candidate && signalingWs && signalingWs.readyState === WebSocket.OPEN) {
+                    signalingWs.send(JSON.stringify({
+                        type: 'ice_candidate',
+                        candidate: event.candidate
+                    }));
+                }
+            };
+
+            peerConnection.onconnectionstatechange = function () {
+                log(`🔗 Connection state: ${peerConnection.connectionState}`);
+            };
+
+            log('🔗 Peer connection created');
+        }
+
+        async function createOffer() {
+            if (!peerConnection) {
+                createPeerConnection();
+            }
+
+            try {
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+
+                signalingWs.send(JSON.stringify({
+                    type: 'offer',
+                    offer: offer
+                }));
+
+                log('📞 Created and sent offer');
+            } catch (error) {
+                log(`❌ Error creating offer: ${error}`);
+            }
+        }
+
+        async function handleOffer(offer) {
+            if (!peerConnection) {
+                createPeerConnection();
+            }
+
+            try {
+                await peerConnection.setRemoteDescription(offer);
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+
+                signalingWs.send(JSON.stringify({
+                    type: 'answer',
+                    answer: answer
+                }));
+
+                log('📱 Created and sent answer');
+            } catch (error) {
+                log(`❌ Error handling offer: ${error}`);
+            }
+        }
+
+        async function handleAnswer(answer) {
+            try {
+                await peerConnection.setRemoteDescription(answer);
+                log('✅ Set remote description from answer');
+            } catch (error) {
+                log(`❌ Error handling answer: ${error}`);
+            }
+        }
+
+        async function handleIceCandidate(candidate) {
+            try {
+                await peerConnection.addIceCandidate(candidate);
+                log('🧊 Added ICE candidate');
+            } catch (error) {
+                log(`❌ Error adding ICE candidate: ${error}`);
+            }
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+    </script>
+</body>
+
+</html>

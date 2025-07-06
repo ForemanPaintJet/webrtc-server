@@ -13,8 +13,8 @@ app = Flask(__name__)
 
 @app.route('/')
 def client():
-    """Serve the sample client HTML file"""
-    return send_file('client_sample.html')
+    """Serve the test info page as default"""
+    return test_info()
 
 @app.route('/minimal')
 def minimal_client():
@@ -40,6 +40,11 @@ def screenshare_client():
 def websocket_client():
     """Serve the pure WebSocket client"""
     return send_file('clients/websocket_client.html')
+
+@app.route('/oak')
+def oak_websocket_client():
+    """Serve the WebSocket client with OAK camera support"""
+    return send_file('clients/oak_websocket_client.html')
 
 @app.route('/diagnostics')
 def diagnostics():
@@ -67,6 +72,7 @@ def test_info():
         <li><a href="/debug">Debug Client</a> - Detailed logging and diagnostics</li>
         <li><a href="/screenshare">Screenshare Client</a> - Screen sharing demo</li>
         <li><a href="/websocket">WebSocket Client</a> - Pure WebSocket signaling</li>
+        <li><a href="/oak">OAK WebSocket Client</a> - WebSocket with OAK camera support</li>
         <li><a href="/diagnostics">Diagnostics</a> - Server status and connection tests</li>
         <li><a href="/mobile-test">Mobile Test</a> - Quick mobile camera test</li>
     </ul>
@@ -86,7 +92,17 @@ def test_info():
         <li><strong>Result:</strong> You should see video from both cameras!</li>
     </ol>
     
-    <h2>🔗 Testing Instructions (WebSocket):</h2>
+    <h2>� OAK Camera Testing:</h2>
+    <ol>
+        <li><strong>Start WebSocket Server:</strong> <code>python websocket_server.py</code> (port 8765)</li>
+        <li><strong>Start OAK Bridge:</strong> <code>python oak_camera_bridge.py</code> (port 8766)</li>
+        <li><strong>Start HTTP Server:</strong> <code>python client_server.py</code> (port 5001)</li>
+        <li><strong>Open OAK Client:</strong> <a href="http://localhost:5001/oak">http://localhost:5001/oak</a></li>
+        <li><strong>Connect & Test:</strong> Connect to server → Connect OAK Camera → Join room → Start video</li>
+        <li><strong>Multi-Device:</strong> Open same URL on multiple devices for P2P video chat</li>
+    </ol>
+    
+    <h2>�🔗 Testing Instructions (WebSocket):</h2>
     <ol>
         <li><strong>Start Both Servers:</strong> <code>python start_servers.py</code></li>
         <li><strong>Open WebSocket Client:</strong> <a href="http://localhost:8080/websocket">http://localhost:8080/websocket</a></li>
@@ -111,14 +127,10 @@ def test_info():
     '''
 
 if __name__ == '__main__':
-    if not os.path.exists('client_sample.html'):
-        print("❌ Error: client_sample.html not found!")
-        print("Make sure you're running this from the correct directory.")
-        exit(1)
-    
     print("🎥 Starting WebRTC HTTP Server...")
     print("📱 Main Client: http://localhost:5001")
     print("🔗 WebSocket Client: http://localhost:5001/websocket")
+    print("🔶 OAK Camera Client: http://localhost:5001/oak")
     print("📱 Mobile Client: http://localhost:5001/mobile")
     print("🐛 Debug Client: http://localhost:5001/debug")
     print("📋 Test Instructions: http://localhost:5001/test")
