@@ -1,6 +1,6 @@
 # WebRTC with OAK Camera Support
 
-This project enables high-quality P2P video streaming using OAK (OpenCV AI Kit) cameras through WebRTC in the browser.
+This project enables high-quality P2P video streaming using OAK (OpenCV AI Kit) cameras through WebRTC in the browser with real GStreamer hardware acceleration support.
 
 ## 🔶 OAK Camera Features
 
@@ -8,23 +8,37 @@ This project enables high-quality P2P video streaming using OAK (OpenCV AI Kit) 
 - **WebRTC Integration**: Seamless P2P video chat using OAK camera as source
 - **Browser Compatible**: Works in any modern web browser
 - **Real-time**: Low-latency streaming for interactive video calls
+- **GStreamer Support**: Hardware-accelerated processing with graceful fallback
+- **Multiple Technologies**: WebCodecs, GStreamer, and Canvas options
 
 ## 🚀 Quick Start
 
-### 1. Start All Servers
+### 1. Start All Servers (RECOMMENDED)
 ```bash
-python start_oak_servers.py
+# Start comprehensive system with GStreamer support
+python start_comprehensive_servers.py
 ```
 
-### 2. Open OAK Camera Client
-Navigate to: http://localhost:5001/oak
+### 2. Open Enhanced OAK Camera Client
+Navigate to: **http://localhost:8000/clients/oak_websocket_client.html**
 
 ### 3. Test the Setup
 1. Click "Connect to Server"
-2. Click "🔶 Connect OAK Camera" 
-3. Enter a room name and click "Join Room"
-4. Click "Start Video"
-5. Open the same URL on another device for P2P video chat!
+2. Check GStreamer status (should show "Real GStreamer ✅" if installed)
+3. Click "🔶 Connect OAK Camera" 
+4. Select streaming technology (WebCodecs/GStreamer/Canvas)
+5. Enter a room name and click "Join Room"
+6. Click "Start Video"
+7. Open the same URL on another device for hardware-accelerated P2P video chat!
+
+### Alternative: Legacy Setup
+```bash
+# Start basic OAK servers (without GStreamer)
+python start_oak_servers.py
+
+# Access legacy client at:
+# http://localhost:5001/oak
+```
 
 ## 🛠️ Manual Setup
 

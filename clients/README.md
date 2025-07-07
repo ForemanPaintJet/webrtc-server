@@ -1,33 +1,35 @@
 # WebRTC Client Samples Guide
 
-This directory contains multiple WebRTC client samples that demonstrate different use cases and approaches for connecting to your WebRTC signaling server.
+This directory contains multiple WebRTC client samples that demonstrate different use cases and approaches for connecting to your WebRTC signaling server with OAK camera and GStreamer support.
 
 ## 🚀 Quick Start
 
-1. **Start the WebRTC signaling server:**
+1. **Start the comprehensive WebRTC system:**
    ```bash
-   python p2p_webrtc.py
+   python start_comprehensive_servers.py
    ```
 
-2. **Start the client samples server:**
-   ```bash
-   python clients_server.py
-   ```
+2. **Access the enhanced client:**
+   - **🎯 Main Enhanced Client**: http://localhost:8000/clients/oak_websocket_client.html
 
-3. **Open your browser and visit:**
-   - Main index: http://localhost:5002/
-   - Or directly access any client (see URLs below)
+3. **Or access legacy clients:**
+   - Legacy OAK Client: http://localhost:5001/oak
+   - Standard clients: http://localhost:5001/ (various options)
 
 ## 📱 Available Clients
 
-### 1. 🎯 Minimal Client
-**URL:** http://localhost:5002/client/minimal
+### 1. 🎯 Enhanced OAK Client (RECOMMENDED)
+**URL:** http://localhost:8000/clients/oak_websocket_client.html
 
-A clean, simple WebRTC client perfect for understanding the basics.
+The most advanced client with full OAK camera and GStreamer support.
 
 **Features:**
-- Basic video calling functionality
-- Simple, uncluttered UI
+- OAK camera integration with 1280x720@30fps
+- Real GStreamer hardware acceleration
+- Technology selection (WebCodecs/GStreamer/Canvas)
+- Real-time status indicators
+- Performance comparison tools
+- Automatic fallback handling
 - Easy-to-read code structure
 - Perfect for learning WebRTC fundamentals
 
