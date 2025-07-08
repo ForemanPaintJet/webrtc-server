@@ -1,12 +1,8 @@
-# WebRTC P2P Video Chat Se## 🚀 Recent Updatesver wit### 🚀 GStreamer (Real Integration) OAK Camera Support
+# WebRTC P2P Video Chat Server with OAK Camera Support
 
 A professional WebRTC signaling server for peer-to-peer video communication with high-quality OAK camera streaming support, real GStreamer hardware acceleration, and multiple streaming technology options.
 
-## 📋 Table of Contents# 📋 Table of Con## 🚀 Recent UpdatesentsRTC### 🚀 GStreamer (Real Integration)P2P Video Chat Server with OAK Camera Support
-
-A professional WebRTC signaling server for peer-to-peer video communication with high-quality OAK camera streaming support, real GStreamer hardware acceleration, and multiple streaming technology options.
-
-## � Table of Contents
+## 📋 Table of Contents
 
 - [Docker Deployment](#-quick-start)
 - [Recent Updates](#-recent-updates)
@@ -24,8 +20,9 @@ A professional WebRTC signaling server for peer-to-peer video communication with
 - [Project Structure](#-project-structure)
 - [Use Cases](#-use-cases)
 - [Example Workflow](#-example-workflow)
+- [Platform Limitations](#-platform-limitations)
 
-## �🚀 Recent Updates
+## 🚀 Recent Updates
 
 ### 🚀 GStreamer (Hardware Accelerated)
 - **Real GStreamer Integration**: Actual `gst-launch-1.0` pipelines with hardware acceleration
@@ -73,6 +70,24 @@ A professional WebRTC signaling server for peer-to-peer video communication with
 - **GStreamer** (recommended, for hardware-accelerated streaming)
 
 ### Option 1: Docker Deployment (RECOMMENDED)
+
+**⚠️ Important Note for macOS Users:**
+Docker containers on macOS cannot access USB devices (including cameras) due to macOS kernel limitations. This affects:
+- Regular webcam streaming between clients
+- OAK camera access from within containers
+
+**macOS Docker Workarounds:**
+1. **For OAK Camera**: Run the OAK camera bridge natively on the host:
+   ```bash
+   # Terminal 1: Run servers in Docker
+   ./docker-start.sh build
+   
+   # Terminal 2: Run OAK bridge natively on host
+   python oak_camera_bridge.py
+   ```
+
+2. **For Regular Webcams**: Use native Python installation instead of Docker on macOS
+3. **For Linux/Windows**: Full Docker support including USB camera access
 
 ```bash
 # Quick start with convenience script
@@ -396,6 +411,32 @@ python start_comprehensive_servers.py
 # 6. Connect OAK Camera → Select GStreamer → Join Room → Start Video
 # 7. Share URL with others for professional-quality hardware-accelerated video chat!
 ```
+
+---
+
+## 🚨 Platform Limitations
+
+### macOS Docker USB Camera Restrictions
+
+Docker containers on macOS **cannot access USB devices** (including cameras) due to macOS kernel limitations. This affects:
+
+- **Regular webcam streaming**: Won't work from Docker containers
+- **OAK camera access**: Cannot access OAK-D devices from containers
+
+**Solutions for macOS**:
+1. **Hybrid approach**: Run main services in Docker, camera bridge natively
+2. **Native installation**: Use Python directly for full camera support
+3. **See detailed guide**: [PLATFORM_LIMITATIONS.md](PLATFORM_LIMITATIONS.md)
+
+### Cross-Platform Support
+
+| Platform | Docker USB Support | Recommended Approach |
+|----------|-------------------|---------------------|
+| **macOS** | ❌ No USB access | Native Python or hybrid |
+| **Linux** | ✅ Full support | Docker (preferred) |  
+| **Windows** | ✅ With WSL2 | Docker with WSL2 |
+
+For detailed platform-specific instructions and workarounds, see **[PLATFORM_LIMITATIONS.md](PLATFORM_LIMITATIONS.md)**.
 
 ---
 
