@@ -942,8 +942,15 @@
         function updateButtons() {
             document.getElementById('joinBtn').disabled = !isConnectedToServer;
             document.getElementById('leaveBtn').disabled = !isInRoom;
-            document.getElementById('startBtn').disabled = !isInRoom || localStream !== null || isComparisonMode;
-            document.getElementById('stopBtn').disabled = localStream === null && !isComparisonMode;
+
+            // Start button: enabled when in room, have a camera, but not streaming yet
+            const hasCamera = localStream !== null || isOAKConnected;
+            const isStreaming = peerConnection !== null && peerConnection.connectionState === 'connected';
+            document.getElementById('startBtn').disabled = !isInRoom || !hasCamera || isStreaming || isComparisonMode;
+
+            // Stop button: enabled when streaming or in comparison mode
+            document.getElementById('stopBtn').disabled = !isStreaming && !isComparisonMode;
+
             document.getElementById('muteBtn').disabled = localStream === null;
             document.getElementById('regularCameraBtn').disabled = availableCameras.length === 0;
 
@@ -1012,8 +1019,16 @@
 
                 case 'user_joined':
                     smartLog(`👥 User joined: ${message.user_id}`);
-                    if (localStream && peerConnection) {
+                    if (localStream) {
+                        // Ensure peer connection exists
+                        if (!peerConnection) {
+                            createPeerConnection();
+                        }
+                        // Create offer for the new user
                         createOffer();
+                        smartLog('📞 Creating offer for new user...');
+                    } else {
+                        smartLog('⚠️ No local stream available to share with new user');
                     }
                     break;
 
@@ -1277,11 +1292,16 @@
                     return;
                 }
 
-                log('📱 Starting regular camera...');
+                smartLog('📱 Starting regular camera...');
 
                 // Stop OAK if active
                 if (isOAKActive) {
                     isOAKActive = false;
+                }
+
+                // Stop any existing stream
+                if (localStream) {
+                    localStream.getTracks().forEach(track => track.stop());
                 }
 
                 const constraints = {
@@ -1294,20 +1314,26 @@
                     audio: true
                 };
 
-                if (localStream) {
-                    localStream.getTracks().forEach(track => track.stop());
-                }
-
                 localStream = await navigator.mediaDevices.getUserMedia(constraints);
                 localStream.id = 'regular-camera';
 
+                // Display local video
                 document.getElementById('localVideo').srcObject = localStream;
 
-                log('✅ Regular camera started');
+                smartLog('✅ Regular camera started and ready for streaming');
+                smartLog(`📹 Camera: ${localStream.getVideoTracks()[0].label}`);
+                smartLog(`🎤 Audio: ${localStream.getAudioTracks()[0].label}`);
+
                 updateButtons();
 
+                // If already in a room, automatically start streaming
+                if (isInRoom) {
+                    smartLog('🚀 Auto-starting video stream since already in room...');
+                    setTimeout(() => startVideo(), 100);
+                }
+
             } catch (error) {
-                log(`❌ Error starting regular camera: ${error}`);
+                smartLog(`❌ Error starting regular camera: ${error}`);
                 alert('Error starting camera: ' + error.message);
             }
         }
@@ -1321,9 +1347,10 @@
                     return;
                 }
 
+                // Handle OAK camera streaming with special technologies
                 if (isOAKConnected && !localStream) {
                     // Use OAK camera with selected streaming technology
-                    log(`🔶 Starting OAK camera with ${streamingTechCapabilities[selectedStreamingTech].name}...`);
+                    smartLog(`🔶 Starting OAK camera with ${streamingTechCapabilities[selectedStreamingTech].name}...`);
                     isOAKActive = true;
 
                     // Use the selected streaming technology
@@ -1332,9 +1359,9 @@
                         case 'webcodecs':
                             success = await tryWebCodecsStream();
                             if (success) {
-                                log('✅ Using WebCodecs for optimal performance');
+                                smartLog('✅ Using WebCodecs for optimal performance');
                             } else {
-                                log('❌ WebCodecs failed, falling back to Canvas');
+                                smartLog('❌ WebCodecs failed, falling back to Canvas');
                                 success = await startCanvasStream();
                             }
                             break;
@@ -1342,9 +1369,9 @@
                         case 'gstreamer':
                             success = await tryGStreamerStream();
                             if (success) {
-                                log('✅ Using GStreamer for balanced performance');
+                                smartLog('✅ Using GStreamer for balanced performance');
                             } else {
-                                log('❌ GStreamer failed, falling back to Canvas');
+                                smartLog('❌ GStreamer failed, falling back to Canvas');
                                 success = await startCanvasStream();
                             }
                             break;
@@ -1353,7 +1380,7 @@
                         default:
                             success = await startCanvasStream();
                             if (success) {
-                                log('✅ Using Canvas for maximum compatibility');
+                                smartLog('✅ Using Canvas for maximum compatibility');
                             }
                             break;
                     }
@@ -1362,42 +1389,57 @@
                         throw new Error('Failed to start with any streaming method');
                     }
 
-                    log('✅ OAK camera stream ready');
+                    smartLog('✅ OAK camera stream ready');
+
+                } else if (localStream && localStream.id === 'regular-camera') {
+                    // Handle regular camera - direct WebRTC streaming
+                    smartLog('📱 Starting regular camera WebRTC streaming...');
+                    smartLog('✅ Regular camera stream ready for WebRTC');
 
                 } else if (!localStream) {
                     alert('Please connect a camera first (regular or OAK)');
                     return;
                 }
 
-                // Create peer connection if needed
+                // Create peer connection for WebRTC streaming (both regular and OAK)
                 if (isInRoom && !peerConnection) {
                     createPeerConnection();
+
+                    // If there are other users in the room, create an offer
+                    smartLog('🔗 Creating WebRTC peer connection...');
                 }
 
                 updateButtons();
 
             } catch (error) {
-                log(`❌ Error starting video: ${error}`);
+                smartLog(`❌ Error starting video: ${error}`);
                 alert('Error starting video: ' + error.message);
             }
         }
 
         function stopVideo() {
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-                localStream = null;
-                document.getElementById('localVideo').srcObject = null;
-            }
+            smartLog('🛑 Stopping video streaming...');
 
+            // Close peer connection first
             if (peerConnection) {
                 peerConnection.close();
                 peerConnection = null;
+                smartLog('🔌 Peer connection closed');
             }
 
+            // Clean up remote video
+            if (remoteStream) {
+                remoteStream.getTracks().forEach(track => track.stop());
+                remoteStream = null;
+            }
             document.getElementById('remoteVideo').srcObject = null;
+
+            // Note: We keep localStream running so user can see their own camera
+            // Only stop it if they explicitly disconnect the camera
+
             isOAKActive = false;
 
-            log('🛑 Video stopped');
+            smartLog('✅ Video streaming stopped');
             updateButtons();
         }
 
@@ -1408,7 +1450,7 @@
                     audioTrack.enabled = !audioTrack.enabled;
                     isMuted = !audioTrack.enabled;
                     document.getElementById('muteBtn').textContent = isMuted ? '🔊 Unmute' : '🔇 Mute';
-                    log(`🔊 Audio ${isMuted ? 'muted' : 'unmuted'}`);
+                    smartLog(`🔊 Audio ${isMuted ? 'muted' : 'unmuted'}`);
                 }
             }
         }
@@ -1422,13 +1464,16 @@
                 localStream.getTracks().forEach(track => {
                     peerConnection.addTrack(track, localStream);
                 });
+                smartLog(`📹 Added ${localStream.getVideoTracks().length} video track(s) to peer connection`);
+                smartLog(`🎤 Added ${localStream.getAudioTracks().length} audio track(s) to peer connection`);
             }
 
             // Handle remote stream
             peerConnection.ontrack = function (event) {
-                log('📺 Received remote stream');
+                smartLog('📺 Received remote stream');
                 remoteStream = event.streams[0];
                 document.getElementById('remoteVideo').srcObject = remoteStream;
+                updateButtons();
             };
 
             // Handle ICE candidates
@@ -1442,10 +1487,17 @@
             };
 
             peerConnection.onconnectionstatechange = function () {
-                log(`🔗 Connection state: ${peerConnection.connectionState}`);
+                smartLog(`🔗 Connection state: ${peerConnection.connectionState}`);
+                updateButtons(); // Update button states when connection changes
+
+                if (peerConnection.connectionState === 'connected') {
+                    smartLog('🎉 WebRTC connection established successfully!');
+                } else if (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed') {
+                    smartLog('⚠️ WebRTC connection lost');
+                }
             };
 
-            log('🔗 Peer connection created');
+            smartLog('🔗 Peer connection created');
         }
 
         async function createOffer() {
@@ -1462,9 +1514,9 @@
                     offer: offer
                 }));
 
-                log('📞 Created and sent offer');
+                smartLog('📞 Created and sent offer');
             } catch (error) {
-                log(`❌ Error creating offer: ${error}`);
+                smartLog(`❌ Error creating offer: ${error}`);
             }
         }
 
@@ -1483,27 +1535,27 @@
                     answer: answer
                 }));
 
-                log('📱 Created and sent answer');
+                smartLog('📱 Created and sent answer');
             } catch (error) {
-                log(`❌ Error handling offer: ${error}`);
+                smartLog(`❌ Error handling offer: ${error}`);
             }
         }
 
         async function handleAnswer(answer) {
             try {
                 await peerConnection.setRemoteDescription(answer);
-                log('✅ Set remote description from answer');
+                smartLog('✅ Set remote description from answer');
             } catch (error) {
-                log(`❌ Error handling answer: ${error}`);
+                smartLog(`❌ Error handling answer: ${error}`);
             }
         }
 
         async function handleIceCandidate(candidate) {
             try {
                 await peerConnection.addIceCandidate(candidate);
-                log('🧊 Added ICE candidate');
+                smartLog('🧊 Added ICE candidate');
             } catch (error) {
-                log(`❌ Error adding ICE candidate: ${error}`);
+                smartLog(`❌ Error adding ICE candidate: ${error}`);
             }
         }
 
