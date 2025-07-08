@@ -160,6 +160,25 @@ class OAKCameraBridge:
         # Add client to set
         self.clients.add(websocket)
         
+        # Check if camera is available
+        if not getattr(self, 'oak_available', True):
+            try:
+                await websocket.send(json.dumps({
+                    "type": "error",
+                    "message": "No OAK camera available in container. Check USB device access.",
+                    "details": "Run container with --device=/dev/bus/usb or --privileged"
+                }))
+            except:
+                pass
+            # Keep connection open but don't try to start camera
+            try:
+                await websocket.wait_closed()
+            except:
+                pass
+            finally:
+                self.clients.discard(websocket)
+            return
+        
         # Start streaming if this is the first client
         if len(self.clients) == 1 and not self.streaming:
             logger.info("▶️ Starting OAK camera streaming for first client")
@@ -231,12 +250,12 @@ class OAKCameraBridge:
     async def start_server(self):
         """Start the WebSocket server"""
         logger.info(f"🚀 Starting OAK Camera WebSocket Bridge on port {self.port}")
-        logger.info("📡 Clients can connect to: ws://localhost:8766")
+        logger.info("📡 Clients can connect to: ws://0.0.0.0:8766")
         
         # Start WebSocket server
         async with websockets.serve(
             self.handle_client,
-            "localhost",
+            "0.0.0.0",
             self.port,
             max_size=10**7,  # 10MB max message size for frames
             ping_timeout=20,
@@ -251,6 +270,7 @@ def main():
     print("=" * 40)
     
     # Check if OAK camera is available
+    oak_available = False
     try:
         devices = dai.Device.getAllAvailableDevices()
         if len(devices) == 0:
@@ -258,20 +278,29 @@ def main():
             try:
                 with dai.Device() as device:
                     print("✅ OAK camera detected (direct connection)")
-            except Exception:
-                print("❌ No OAK cameras found. Please connect an OAK-D camera.")
-                return
+                    oak_available = True
+            except Exception as e:
+                print(f"⚠️  No OAK cameras found: {e}")
+                print("🔄 Starting bridge in 'no camera' mode - will keep running and retry connections")
+                oak_available = False
         else:
             print(f"✅ Found {len(devices)} OAK camera(s)")
             for i, device in enumerate(devices):
                 print(f"  📷 Device {i}: {device.name} ({device.mxid})")
+            oak_available = True
         
     except Exception as e:
-        print(f"❌ Error detecting OAK cameras: {e}")
-        return
+        print(f"⚠️  Error detecting OAK cameras: {e}")
+        print("🔄 Starting bridge in 'no camera' mode - will keep running for Docker compatibility")
+        oak_available = False
     
-    # Create and start bridge
+    # Create and start bridge (even without camera - important for Docker)
     bridge = OAKCameraBridge(port=8766)
+    bridge.oak_available = getattr(bridge, 'oak_available', oak_available)
+    
+    print(f"🌐 Starting WebSocket server on port 8766...")
+    if not oak_available:
+        print("📝 Note: Bridge will respond with 'no camera' messages until OAK camera is connected")
     
     try:
         asyncio.run(bridge.start_server())

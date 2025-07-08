@@ -171,15 +171,119 @@
         }
 
         .logs {
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
+            background: #1e1e1e;
+            border: 2px solid #333;
+            border-radius: 8px;
             padding: 15px;
-            height: 200px;
+            height: 300px;
             overflow-y: auto;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
+            font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Courier New', monospace;
+            font-size: 13px;
             margin-top: 20px;
+            line-height: 1.5;
+            color: #f8f9fa;
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .log-entry {
+            display: flex;
+            margin-bottom: 8px;
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            align-items: flex-start;
+            word-wrap: break-word;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+
+        .log-timestamp {
+            color: #888;
+            font-size: 11px;
+            margin-right: 12px;
+            min-width: 75px;
+            flex-shrink: 0;
+            font-weight: 500;
+        }
+
+        .log-message {
+            flex: 1;
+            color: #e6e6e6;
+        }
+
+        .log-entry.success .log-message {
+            color: #4ade80;
+        }
+
+        .log-entry.error .log-message {
+            color: #ef4444;
+        }
+
+        .log-entry.warning .log-message {
+            color: #f59e0b;
+        }
+
+        .log-entry.info .log-message {
+            color: #3b82f6;
+        }
+
+        .log-entry.debug .log-message {
+            color: #a855f7;
+        }
+
+        .logs::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .logs::-webkit-scrollbar-track {
+            background: #2d2d2d;
+            border-radius: 4px;
+        }
+
+        .logs::-webkit-scrollbar-thumb {
+            background: #555;
+            border-radius: 4px;
+        }
+
+        .logs::-webkit-scrollbar-thumb:hover {
+            background: #777;
+        }
+
+        .log-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            align-items: center;
+        }
+
+        .log-filter {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+
+        .log-filter label {
+            font-size: 12px;
+            color: #666;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+        }
+
+        .log-filter input[type="checkbox"] {
+            margin: 0;
+        }
+
+        .log-auto-scroll {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+            color: #666;
+            margin-left: auto;
         }
 
         .tech-selection {
@@ -611,7 +715,21 @@
         <!-- Logs -->
         <h3>📋 Connection Logs</h3>
         <div id="logs" class="logs"></div>
-        <button onclick="clearLogs()">Clear Logs</button>
+        <div class="log-controls">
+            <button onclick="clearLogs()">🗑️ Clear Logs</button>
+            <button onclick="exportLogs()">💾 Export Logs</button>
+            <div class="log-filter">
+                <label><input type="checkbox" id="filterSuccess" checked> ✅ Success</label>
+                <label><input type="checkbox" id="filterError" checked> ❌ Error</label>
+                <label><input type="checkbox" id="filterWarning" checked> ⚠️ Warning</label>
+                <label><input type="checkbox" id="filterInfo" checked> ℹ️ Info</label>
+                <label><input type="checkbox" id="filterDebug" checked> 🔧 Debug</label>
+            </div>
+            <div class="log-auto-scroll">
+                <input type="checkbox" id="autoScroll" checked>
+                <label for="autoScroll">Auto-scroll</label>
+            </div>
+        </div>
     </div>
 
     <!-- Hidden canvas for OAK frames -->
@@ -695,9 +813,13 @@
 
         // Initialize when page loads
         window.onload = function () {
-            log('🚀 WebRTC with OAK Camera loaded');
+            smartLog('🚀 WebRTC with OAK Camera loaded');
             oakCanvas = document.getElementById('oakCanvas');
             oakCtx = oakCanvas.getContext('2d');
+
+            // Setup log filters
+            setupLogFilters();
+
             detectCameras();
             checkOAKAvailability();
             initializeStreamingTech();
@@ -707,32 +829,106 @@
         };
 
         function checkGStreamerStatus() {
-            log('🔍 Checking GStreamer bridge availability...');
+            smartLog('🔍 Checking GStreamer bridge availability...');
             connectToGStreamerBridge().then(connected => {
                 if (connected) {
-                    log('✅ GStreamer bridge is available');
-                    log('🔧 Checking for real GStreamer installation...');
+                    smartLog('✅ GStreamer bridge is available');
+                    smartLog('🔧 Checking for real GStreamer installation...');
                 } else {
-                    log('⚠️ GStreamer bridge not available - using fallback mode');
-                    log('💡 To install GStreamer: brew install gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad');
+                    smartLog('⚠️ GStreamer bridge not available - using fallback mode');
+                    smartLog('💡 To install GStreamer: brew install gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad');
                     updateGStreamerStatusIndicator();
                 }
             }).catch(error => {
-                log(`❌ GStreamer bridge check failed: ${error.message}`);
-                log('💡 Make sure the server is running: python start_comprehensive_servers.py');
+                smartLog(`❌ GStreamer bridge check failed: ${error.message}`);
+                smartLog('💡 Make sure the server is running: python start_comprehensive_servers.py');
                 updateGStreamerStatusIndicator();
             });
         }
 
-        // Logging function
-        function log(message) {
-            const timestamp = new Date().toLocaleTimeString();
-            const logMessage = `[${timestamp}] ${message}`;
-            console.log(logMessage);
+        // Enhanced logging system
+        let logEntries = [];
+        let logId = 0;
 
+        function log(message, level = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = {
+                id: logId++,
+                timestamp,
+                message,
+                level,
+                fullTimestamp: new Date().toISOString()
+            };
+
+            logEntries.push(entry);
+            console.log(`[${timestamp}] ${message}`);
+
+            // Keep only last 1000 log entries
+            if (logEntries.length > 1000) {
+                logEntries = logEntries.slice(-1000);
+            }
+
+            renderLogs();
+        }
+
+        function renderLogs() {
             const logsEl = document.getElementById('logs');
-            logsEl.innerHTML += logMessage + '\n';
-            logsEl.scrollTop = logsEl.scrollHeight;
+            const filters = {
+                success: document.getElementById('filterSuccess')?.checked ?? true,
+                error: document.getElementById('filterError')?.checked ?? true,
+                warning: document.getElementById('filterWarning')?.checked ?? true,
+                info: document.getElementById('filterInfo')?.checked ?? true,
+                debug: document.getElementById('filterDebug')?.checked ?? true
+            };
+
+            const shouldAutoScroll = document.getElementById('autoScroll')?.checked ?? true;
+            const wasScrolledToBottom = logsEl.scrollTop >= logsEl.scrollHeight - logsEl.clientHeight - 10;
+
+            // Filter and render log entries
+            const filteredEntries = logEntries.filter(entry => {
+                switch (entry.level) {
+                    case 'success': return filters.success;
+                    case 'error': return filters.error;
+                    case 'warning': return filters.warning;
+                    case 'info': return filters.info;
+                    case 'debug': return filters.debug;
+                    default: return true;
+                }
+            });
+
+            logsEl.innerHTML = filteredEntries.map(entry =>
+                `<div class="log-entry ${entry.level}" data-level="${entry.level}">
+                    <span class="log-timestamp">${entry.timestamp}</span>
+                    <span class="log-message">${entry.message}</span>
+                </div>`
+            ).join('');
+
+            // Auto-scroll if enabled and was at bottom
+            if (shouldAutoScroll && (wasScrolledToBottom || logEntries.length === 1)) {
+                logsEl.scrollTop = logsEl.scrollHeight;
+            }
+        }
+
+        // Convenience functions for different log levels
+        function logSuccess(message) { log(message, 'success'); }
+        function logError(message) { log(message, 'error'); }
+        function logWarning(message) { log(message, 'warning'); }
+        function logInfo(message) { log(message, 'info'); }
+        function logDebug(message) { log(message, 'debug'); }
+
+        // Auto-detect log level based on message content
+        function smartLog(message) {
+            if (message.includes('✅') || message.includes('Connected') || message.includes('Success')) {
+                logSuccess(message);
+            } else if (message.includes('❌') || message.includes('Error') || message.includes('Failed')) {
+                logError(message);
+            } else if (message.includes('⚠️') || message.includes('Warning') || message.includes('fallback')) {
+                logWarning(message);
+            } else if (message.includes('🔧') || message.includes('Debug') || message.includes('Checking')) {
+                logDebug(message);
+            } else {
+                logInfo(message);
+            }
         }
 
         // Update connection status
@@ -764,13 +960,13 @@
                 signalingWs.close();
             }
 
-            log('🔗 Connecting to signaling server...');
+            smartLog('🔗 Connecting to signaling server...');
             updateStatus('Connecting to server...', 'connecting');
 
             signalingWs = new WebSocket('ws://localhost:8765');
 
             signalingWs.onopen = function () {
-                log('✅ Connected to signaling server');
+                smartLog('✅ Connected to signaling server');
                 updateStatus('Connected to signaling server', 'connected');
                 isConnectedToServer = true;
                 updateButtons();
@@ -782,7 +978,7 @@
             };
 
             signalingWs.onclose = function () {
-                log('❌ Disconnected from signaling server');
+                smartLog('❌ Disconnected from signaling server');
                 updateStatus('Disconnected from signaling server', 'disconnected');
                 isConnectedToServer = false;
                 isInRoom = false;
@@ -790,32 +986,32 @@
             };
 
             signalingWs.onerror = function (error) {
-                log(`❌ Signaling server error: ${error}`);
+                smartLog(`❌ Signaling server error: ${error}`);
                 updateStatus('Connection error', 'disconnected');
             };
         }
 
         // Handle signaling messages
         function handleSignalingMessage(message) {
-            log(`📥 Received: ${message.type}`);
+            smartLog(`📥 Received: ${message.type}`);
 
             switch (message.type) {
                 case 'room_joined':
                     isInRoom = true;
                     currentRoom = message.room;
-                    log(`🏠 Joined room: ${currentRoom}`);
+                    smartLog(`🏠 Joined room: ${currentRoom}`);
                     updateButtons();
                     break;
 
                 case 'room_left':
                     isInRoom = false;
                     currentRoom = null;
-                    log('🚪 Left room');
+                    smartLog('🚪 Left room');
                     updateButtons();
                     break;
 
                 case 'user_joined':
-                    log(`👥 User joined: ${message.user_id}`);
+                    smartLog(`👥 User joined: ${message.user_id}`);
                     if (localStream && peerConnection) {
                         createOffer();
                     }
@@ -1312,7 +1508,38 @@
         }
 
         function clearLogs() {
+            logEntries = [];
+            logId = 0;
             document.getElementById('logs').innerHTML = '';
+        }
+
+        function exportLogs() {
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const logContent = logEntries.map(entry =>
+                `[${entry.fullTimestamp}] [${entry.level.toUpperCase()}] ${entry.message}`
+            ).join('\n');
+
+            const blob = new Blob([logContent], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `webrtc-oak-logs-${timestamp}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            logInfo(`📁 Exported ${logEntries.length} log entries to ${a.download}`);
+        }
+
+        // Setup log filter event listeners
+        function setupLogFilters() {
+            ['filterSuccess', 'filterError', 'filterWarning', 'filterInfo', 'filterDebug', 'autoScroll'].forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.addEventListener('change', renderLogs);
+                }
+            });
         }
 
         // Performance monitoring functions

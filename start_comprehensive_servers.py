@@ -44,14 +44,26 @@ class ComprehensiveOAKServer:
         logger.info("🔍 Checking system requirements...")
         
         # Check Python modules
-        required_modules = ['depthai', 'cv2', 'websockets', 'asyncio']
-        for module in required_modules:
+        required_modules = {
+            'depthai': 'pip install depthai',
+            'cv2': 'pip install opencv-python', 
+            'websockets': 'pip install websockets',
+            'asyncio': 'Built-in module'
+        }
+        
+        missing_modules = []
+        for module, install_cmd in required_modules.items():
             try:
                 __import__(module)
                 logger.info(f"✅ {module} available")
             except ImportError:
-                logger.error(f"❌ {module} not available")
-                return False
+                logger.error(f"❌ {module} not available - Install with: {install_cmd}")
+                missing_modules.append(module)
+        
+        if missing_modules:
+            logger.error("❌ Missing required modules. Install all dependencies with:")
+            logger.error("   pip install -r requirements.txt")
+            return False
         
         # Check GStreamer
         try:

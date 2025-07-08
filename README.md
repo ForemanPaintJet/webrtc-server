@@ -8,6 +8,7 @@ A professional WebRTC signaling server for peer-to-peer video communication with
 
 ## � Table of Contents
 
+- [Docker Deployment](#-quick-start)
 - [Recent Updates](#-recent-updates)
 - [OAK Camera Features](#-oak-camera-features)
 - [Streaming Technologies](#️-streaming-technologies)
@@ -66,10 +67,37 @@ A professional WebRTC signaling server for peer-to-peer video communication with
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.7+
+- Python 3.7+ OR Docker
 - OAK-D camera (optional, for high-quality streaming)
 - Modern web browser with WebRTC support
 - **GStreamer** (recommended, for hardware-accelerated streaming)
+
+### Option 1: Docker Deployment (RECOMMENDED)
+
+```bash
+# Quick start with convenience script
+./docker-start.sh build
+
+# Or manually with Docker Compose
+docker compose -f docker/compose/docker-compose.yml up --build
+
+# Development environment with live reload
+./docker-start.sh dev
+
+# Access the application at:
+# http://localhost:8000/clients/oak_websocket_client.html
+```
+
+**Docker Commands:**
+- `./docker-start.sh build` - Quick production setup
+- `./docker-start.sh dev` - Development with live reload  
+- `./docker-start.sh test` - Run build and test suite
+- `./docker-start.sh logs` - Monitor application logs
+- `./docker-start.sh stop` - Stop all services
+
+For detailed Docker instructions, see [docker/docs/DOCKER.md](docker/docs/DOCKER.md).
+
+### Option 2: Native Python Installation
 
 ### 1. Install Dependencies
 ```bash

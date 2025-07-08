@@ -263,8 +263,8 @@ class GStreamerBridge:
         else:
             logger.warning("⚠️ GStreamer not available - bridge will run in limited mode")
         
-        async with websockets.serve(self.handle_client, "localhost", self.port):
-            logger.info(f"🌐 GStreamer bridge listening on ws://localhost:{self.port}")
+        async with websockets.serve(self.handle_client, "0.0.0.0", self.port):
+            logger.info(f"🌐 GStreamer bridge listening on ws://0.0.0.0:{self.port}")
             await asyncio.Future()  # Run forever
 
 def main():

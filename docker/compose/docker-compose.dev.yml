@@ -1,0 +1,25 @@
+services:
+  webrtc-oak-dev:
+    build: ../../  # Build from project root
+    container_name: webrtc-oak-dev
+    ports:
+      - "8000:8000"   # HTTP Client Server
+      - "8765:8765"   # WebSocket Signaling Server
+      - "8766:8766"   # OAK Camera Bridge
+      - "8767:8767"   # GStreamer Bridge
+    volumes:
+      # Mount source code for live development
+      - ../../:/app
+      - ../../logs:/app/logs
+      - /dev/bus/usb:/dev/bus/usb  # For OAK camera access
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
+    privileged: true
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=DEBUG
+      - FLASK_DEBUG=1
+    restart: unless-stopped
+    command: ["python", "start_comprehensive_servers.py"]
+    stdin_open: true
+    tty: true
