@@ -9,4 +9,16 @@ opencv-python==4.8.0.74
 
 # Additional Dependencies
 numpy==1.24.3
+Pillow==9.5.0 and HTTP Server Dependencies
+Flask==2.3.2
+Flask-SocketIO==5.3.4
+websockets==11.0.3
+aiohttp==3.9.1
+
+# OAK Camera Dependencies
+depthai==2.21.2.0
+opencv-python==4.8.0.74
+
+# Additional Dependencies
+numpy==1.24.3
 Pillow==9.5.0

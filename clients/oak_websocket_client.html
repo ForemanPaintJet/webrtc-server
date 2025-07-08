@@ -85,6 +85,18 @@
             background: linear-gradient(45deg, #4CAF50, #45a049) !important;
         }
 
+        .video-file-button {
+            background: linear-gradient(45deg, #9c27b0, #7b1fa2) !important;
+        }
+
+        .video-file-button:hover:not(:disabled) {
+            background: linear-gradient(45deg, #7b1fa2, #4a148c) !important;
+        }
+
+        .video-file-button.active {
+            background: linear-gradient(45deg, #4CAF50, #45a049) !important;
+        }
+
         select,
         input[type="text"],
         input[type="number"] {
@@ -166,6 +178,25 @@
         }
 
         .oak-status.error {
+            border-color: #f44336;
+            background: rgba(244, 67, 54, 0.1);
+        }
+
+        .video-file-status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border: 2px solid #9c27b0;
+            background: rgba(156, 39, 176, 0.1);
+            text-align: center;
+        }
+
+        .video-file-status.connected {
+            border-color: #4CAF50;
+            background: rgba(76, 175, 80, 0.1);
+        }
+
+        .video-file-status.error {
             border-color: #f44336;
             background: rgba(244, 67, 54, 0.1);
         }
@@ -626,10 +657,11 @@
             <button onclick="connectToServer()">Connect to Server</button>
             <button onclick="joinRoom()" id="joinBtn" disabled>Join Room</button>
             <button onclick="leaveRoom()" id="leaveBtn" disabled>Leave Room</button>
+            <button onclick="alert('JavaScript is working!');" style="background: #ff6600;">🧪 Test JS</button>
         </div>
 
         <!-- Camera Selection -->
-        <h3>📹 Camera Selection</h3>
+        <h3>📹 Source Selection</h3>
         <div class="controls">
             <select id="cameraSelect" style="width: 300px;">
                 <option value="">Choose regular camera...</option>
@@ -637,12 +669,23 @@
             <button onclick="useRegularCamera()" id="regularCameraBtn" disabled>📱 Use Regular Camera</button>
             <button onclick="toggleOAKCamera()" id="oakCameraBtn" class="oak-button" disabled>🔶 Connect OAK
                 Camera</button>
+            <select id="videoFileSelect" style="width: 300px;">
+                <option value="">Choose video file...</option>
+            </select>
+            <button onclick="useVideoFile()" id="videoFileBtn" class="video-file-button" disabled>📄 Use Video
+                File</button>
+            <button onclick="refreshVideoFileList()" class="video-file-button">🔄 Refresh Files</button>
             <button onclick="detectCameras()">🔍 Detect Cameras</button>
         </div>
 
         <!-- OAK Status -->
         <div id="oakStatus" class="oak-status" style="display: none;">
             <strong>🔶 OAK Camera Status:</strong> <span id="oakStatusText">Disconnected</span>
+        </div>
+
+        <!-- Video File Status -->
+        <div id="videoFileStatus" class="video-file-status" style="display: none;">
+            <strong>📄 Video File Status:</strong> <span id="videoFileStatusText">Disconnected</span>
         </div>
 
         <!-- Streaming Technology Selection -->
@@ -735,10 +778,14 @@
     <!-- Hidden canvas for OAK frames -->
     <canvas id="oakCanvas" style="display: none;"></canvas>
 
+    <!-- Hidden canvas for video file frames -->
+    <canvas id="videoFileCanvas" style="display: none;"></canvas>
+
     <script>
         // Global variables
         let signalingWs = null;
         let oakWs = null;
+        let videoFileWs = null;
         let localStream = null;
         let remoteStream = null;
         let peerConnection = null;
@@ -748,6 +795,8 @@
         let availableCameras = [];
         let isOAKConnected = false;
         let isOAKActive = false;
+        let isVideoFileConnected = false;
+        let isVideoFileActive = false;
         let isMuted = false;
 
         // Streaming technology selection
@@ -795,6 +844,12 @@
         let frameCount = 0;
         let lastFrameTime = 0;
 
+        // Canvas for video file frames
+        let videoFileCanvas = null;
+        let videoFileCtx = null;
+        let videoFileFrameCount = 0;
+        let videoFileLastFrameTime = 0;
+
         // Performance monitoring
         let performanceMetrics = {
             method: 'none',
@@ -813,19 +868,39 @@
 
         // Initialize when page loads
         window.onload = function () {
+            console.log('🚀 Page loaded, initializing...');
             smartLog('🚀 WebRTC with OAK Camera loaded');
-            oakCanvas = document.getElementById('oakCanvas');
-            oakCtx = oakCanvas.getContext('2d');
 
-            // Setup log filters
-            setupLogFilters();
+            try {
+                oakCanvas = document.getElementById('oakCanvas');
+                oakCtx = oakCanvas.getContext('2d');
 
-            detectCameras();
-            checkOAKAvailability();
-            initializeStreamingTech();
+                videoFileCanvas = document.getElementById('videoFileCanvas');
+                videoFileCtx = videoFileCanvas.getContext('2d');
 
-            // Check GStreamer status after a brief delay
-            setTimeout(checkGStreamerStatus, 2000);
+                // Setup log filters
+                setupLogFilters();
+
+                console.log('📹 Starting camera detection...');
+                detectCameras();
+
+                console.log('🔶 Checking OAK availability...');
+                checkOAKAvailability();
+
+                console.log('📄 Checking video file availability...');
+                checkVideoFileAvailability();
+
+                console.log('⚡ Initializing streaming tech...');
+                initializeStreamingTech();
+
+                // Check GStreamer status after a brief delay
+                setTimeout(checkGStreamerStatus, 2000);
+
+                console.log('✅ Initialization complete');
+            } catch (error) {
+                console.error('❌ Error during initialization:', error);
+                alert('Error initializing app: ' + error.message);
+            }
         };
 
         function checkGStreamerStatus() {
@@ -944,7 +1019,7 @@
             document.getElementById('leaveBtn').disabled = !isInRoom;
 
             // Start button: enabled when in room, have a camera, but not streaming yet
-            const hasCamera = localStream !== null || isOAKConnected;
+            const hasCamera = localStream !== null || isOAKConnected || isVideoFileConnected;
             const isStreaming = peerConnection !== null && peerConnection.connectionState === 'connected';
             document.getElementById('startBtn').disabled = !isInRoom || !hasCamera || isStreaming || isComparisonMode;
 
@@ -953,6 +1028,10 @@
 
             document.getElementById('muteBtn').disabled = localStream === null;
             document.getElementById('regularCameraBtn').disabled = availableCameras.length === 0;
+
+            // Video file button: enabled when a file is selected
+            const selectedVideoFile = document.getElementById('videoFileSelect').value;
+            document.getElementById('videoFileBtn').disabled = !selectedVideoFile;
 
             // Update comparison mode button availability
             const startComparisonBtn = document.getElementById('startComparisonBtn');
@@ -1396,8 +1475,21 @@
                     smartLog('📱 Starting regular camera WebRTC streaming...');
                     smartLog('✅ Regular camera stream ready for WebRTC');
 
+                } else if (isVideoFileConnected && !localStream) {
+                    // Handle video file streaming with canvas
+                    smartLog('📄 Starting video file streaming...');
+                    isVideoFileActive = true;
+
+                    // Create stream from video file canvas
+                    const success = await startVideoFileCanvasStream();
+                    if (success) {
+                        smartLog('✅ Video file stream ready for WebRTC');
+                    } else {
+                        throw new Error('Failed to start video file stream');
+                    }
+
                 } else if (!localStream) {
-                    alert('Please connect a camera first (regular or OAK)');
+                    alert('Please connect a camera or video file first (regular camera, OAK, or video file)');
                     return;
                 }
 
@@ -2092,16 +2184,25 @@
         }
 
         function updateComparisonPerformance(tech, processingTime) {
+            if (!comparisonPerformance[tech]) {
+                comparisonPerformance[tech] = {
+                    frameCount: 0,
+                    processingTimes: [],
+                    lastFrameTime: Date.now(),
+                    avgFps: 0,
+                    avgProcessing: 0
+                };
+            }
+
             const perf = comparisonPerformance[tech];
             perf.frameCount++;
             perf.processingTimes.push(processingTime);
 
-            // Keep only last 60 measurements for rolling average
-            if (perf.processingTimes.length > 60) {
+            // Keep only last 100 measurements
+            if (perf.processingTimes.length > 100) {
                 perf.processingTimes.shift();
             }
 
-            // Update FPS every second
             const now = Date.now();
             if (now - perf.lastFrameTime >= 1000) {
                 perf.avgFps = (perf.frameCount / ((now - perf.lastFrameTime) / 1000)).toFixed(1);
@@ -2125,6 +2226,40 @@
                 perf.frameCount = 0;
                 perf.lastFrameTime = now;
             }
+        }
+
+        async function createCanvasComparisonStream(tech) {
+            const canvas = comparisonCanvases[tech];
+            const ctx = canvas.getContext('2d');
+            const stream = canvas.captureStream(30);
+
+            // Handle frames with standard Canvas processing
+            const originalOnMessage = oakWs.onmessage;
+            oakWs.onmessage = function (event) {
+                if (originalOnMessage) originalOnMessage(event);
+
+                if (event.data instanceof Blob && isComparisonMode) {
+                    const frameStartTime = performance.now();
+                    const img = new Image();
+
+                    img.onload = function () {
+                        if (canvas.width !== img.width || canvas.height !== img.height) {
+                            canvas.width = img.width;
+                            canvas.height = img.height;
+                        }
+
+                        ctx.drawImage(img, 0, 0);
+                        URL.revokeObjectURL(img.src);
+
+                        const processingTime = performance.now() - frameStartTime;
+                        updateComparisonPerformance(tech, processingTime);
+                    };
+
+                    img.src = URL.createObjectURL(event.data);
+                }
+            };
+
+            return stream;
         }
 
         function updatePerformanceGraphs(tech, fps, latency) {
@@ -2767,6 +2902,329 @@
                 log(`❌ Canvas stream failed: ${error.message}`);
                 return false;
             }
+        }
+
+        async function startVideoFileCanvasStream() {
+            try {
+                // Create stream from video file canvas
+                const canvasStream = videoFileCanvas.captureStream(30);
+
+                // Add audio (microphone for communication)
+                const audioStream = await navigator.mediaDevices.getUserMedia({
+                    audio: true,
+                    video: false
+                });
+
+                localStream = new MediaStream([
+                    ...canvasStream.getVideoTracks(),
+                    ...audioStream.getAudioTracks()
+                ]);
+
+                localStream.id = 'video-file-stream';
+                document.getElementById('localVideo').srcObject = localStream;
+
+                // Reset performance counters
+                videoFileFrameCount = 0;
+                videoFileLastFrameTime = Date.now();
+                performanceMetrics.frameProcessingTimes = [];
+
+                smartLog('✅ Video file canvas stream created successfully');
+                return true;
+            } catch (error) {
+                smartLog(`❌ Video file canvas stream failed: ${error.message}`);
+                return false;
+            }
+        }
+
+        // Video File functions
+        function checkVideoFileAvailability() {
+            smartLog('📄 Checking Video File bridge availability...');
+
+            const testWs = new WebSocket('ws://localhost:8768');
+
+            // Set a timeout to close connection if no response
+            const timeout = setTimeout(() => {
+                smartLog('⏰ Video file bridge connection timeout');
+                testWs.close();
+            }, 5000);
+
+            testWs.onopen = function () {
+                smartLog('✅ Video File bridge is available');
+                document.getElementById('videoFileBtn').disabled = false;
+                updateVideoFileStatus('Available');
+
+                // Request list of available files
+                smartLog('📤 Requesting file list from video bridge...');
+                testWs.send(JSON.stringify({ type: 'list_files' }));
+            };
+
+            testWs.onmessage = function (event) {
+                clearTimeout(timeout);
+
+                // Check if this is binary data (video frame) or text data (JSON message)
+                if (event.data instanceof Blob) {
+                    smartLog(`📹 Received video frame: ${event.data.size} bytes (ignoring during file list)`);
+                    // Ignore binary data when we're just requesting the file list
+                    return;
+                }
+
+                try {
+                    const data = JSON.parse(event.data);
+                    smartLog(`📥 Received message from video bridge: ${data.type}`);
+
+                    if (data.type === 'file_list') {
+                        smartLog(`📄 Received file list with ${data.files.length} files`);
+                        populateVideoFileSelect(data.files);
+                        testWs.close(); // Close after receiving the file list
+                    } else if (data.type === 'connected') {
+                        smartLog(`✅ Video bridge connected: ${data.message}`);
+                        // Continue waiting for file list
+                    }
+                } catch (e) {
+                    smartLog(`❌ Failed to parse video file message: ${e.message}`);
+                    console.warn('Failed to parse video file message:', e);
+                    testWs.close();
+                }
+            };
+
+            testWs.onerror = function (error) {
+                clearTimeout(timeout);
+                smartLog(`❌ Video File bridge not available: ${error.message || 'Connection failed'}`);
+                updateVideoFileStatus('Not available - Start bridge server', 'error');
+                document.getElementById('videoFileBtn').disabled = true;
+            };
+
+            testWs.onclose = function () {
+                clearTimeout(timeout);
+                smartLog('🔌 Video file bridge connection closed');
+            };
+        }
+
+        function populateVideoFileSelect(files) {
+            smartLog(`📄 Populating video file select with ${files.length} files`);
+            const select = document.getElementById('videoFileSelect');
+            select.innerHTML = '<option value="">Choose video file...</option>';
+
+            files.forEach(file => {
+                const option = document.createElement('option');
+                option.value = file.name;
+
+                if (file.error) {
+                    option.text = `❌ ${file.name} (${file.error})`;
+                    option.disabled = true;
+                    smartLog(`❌ File error: ${file.name} - ${file.error}`);
+                } else {
+                    const sizeText = file.size_mb ? `${file.size_mb}MB` : '';
+                    const resText = file.width && file.height ? `${file.width}x${file.height}` : '';
+                    const fpsText = file.fps ? `${file.fps}fps` : '';
+                    const durText = file.duration ? `${file.duration}s` : '';
+
+                    const details = [sizeText, resText, fpsText, durText].filter(x => x).join(', ');
+                    option.text = `📄 ${file.name}${details ? ` (${details})` : ''}`;
+                    smartLog(`✅ Added file: ${file.name} - ${details}`);
+                }
+
+                select.appendChild(option);
+            });
+
+            smartLog(`📄 Found ${files.length} video files`);
+
+            // Enable/disable the "Use Video File" button based on available files
+            const hasFiles = files.some(file => !file.error);
+            if (hasFiles) {
+                smartLog('📄 Video files available - enabling selection');
+            } else {
+                smartLog('📄 No valid video files found');
+            }
+        }
+
+        async function useVideoFile() {
+            try {
+                const selectedFile = document.getElementById('videoFileSelect').value;
+
+                if (!selectedFile) {
+                    alert('Please select a video file first');
+                    return;
+                }
+
+                smartLog(`📄 Starting video file streaming: ${selectedFile}`);
+
+                // Stop other sources if active
+                if (isOAKActive) {
+                    isOAKActive = false;
+                }
+                if (localStream) {
+                    localStream.getTracks().forEach(track => track.stop());
+                    localStream = null;
+                }
+
+                // Connect to video file bridge with selected file
+                await connectVideoFile(selectedFile);
+
+                updateButtons();
+
+                // If already in a room, automatically start streaming
+                if (isInRoom) {
+                    smartLog('🚀 Auto-starting video file stream since already in room...');
+                    setTimeout(() => startVideo(), 100);
+                }
+
+            } catch (error) {
+                smartLog(`❌ Error starting video file: ${error}`);
+                alert('Error starting video file: ' + error.message);
+            }
+        }
+
+        async function connectVideoFile(fileName) {
+            smartLog(`📄 Connecting to Video File bridge for: ${fileName}`);
+            updateVideoFileStatus('Connecting...', 'connecting');
+
+            return new Promise((resolve, reject) => {
+                videoFileWs = new WebSocket('ws://localhost:8768');
+
+                videoFileWs.onopen = function () {
+                    smartLog('✅ Connected to Video File bridge');
+
+                    // Request to change to the selected file
+                    videoFileWs.send(JSON.stringify({
+                        type: 'change_file',
+                        file: fileName
+                    }));
+                };
+
+                videoFileWs.onmessage = function (event) {
+                    if (event.data instanceof Blob) {
+                        if (isVideoFileActive) {
+                            displayVideoFileFrame(event.data);
+                        }
+                    } else {
+                        // Handle JSON messages
+                        try {
+                            const data = JSON.parse(event.data);
+
+                            if (data.type === 'file_changed') {
+                                if (data.success) {
+                                    smartLog(`✅ Video file changed to: ${data.file}`);
+                                    isVideoFileConnected = true;
+                                    videoFileFrameCount = 0;
+                                    videoFileLastFrameTime = Date.now();
+                                    updateVideoFileStatus(`Streaming: ${data.file} (${data.resolution})`, 'connected');
+                                    document.getElementById('videoFileBtn').textContent = '📄 Disconnect Video File';
+                                    document.getElementById('videoFileBtn').classList.add('active');
+                                    resolve(true);
+                                } else {
+                                    smartLog(`❌ Failed to change video file: ${data.error}`);
+                                    updateVideoFileStatus('Failed to load file', 'error');
+                                    reject(new Error(data.error));
+                                }
+                            } else if (data.type === 'connected') {
+                                smartLog(`📄 Video File Bridge: ${data.message}`);
+                            }
+                        } catch (e) {
+                            // Ignore non-JSON messages
+                        }
+                    }
+                };
+
+                videoFileWs.onclose = function () {
+                    smartLog('🔌 Video File disconnected');
+                    updateVideoFileStatus('Disconnected');
+                    isVideoFileConnected = false;
+                    isVideoFileActive = false;
+                    document.getElementById('videoFileBtn').textContent = '📄 Use Video File';
+                    document.getElementById('videoFileBtn').classList.remove('active');
+                };
+
+                videoFileWs.onerror = function (error) {
+                    smartLog(`❌ Video File error: ${error.message || 'Connection failed'}`);
+                    updateVideoFileStatus('Connection failed', 'error');
+                    isVideoFileConnected = false;
+                    isVideoFileActive = false;
+                    reject(error);
+                };
+            });
+        }
+
+        function disconnectVideoFile() {
+            if (videoFileWs) {
+                videoFileWs.close();
+                videoFileWs = null;
+            }
+
+            isVideoFileConnected = false;
+            isVideoFileActive = false;
+            updateVideoFileStatus('Disconnected');
+            document.getElementById('videoFileBtn').textContent = '📄 Use Video File';
+            document.getElementById('videoFileBtn').classList.remove('active');
+            document.getElementById('videoFileBtn').disabled = false;
+
+            // Stop using video file stream
+            if (localStream && localStream.id === 'video-file-stream') {
+                stopVideo();
+            }
+        }
+
+        function displayVideoFileFrame(blob) {
+            if (!isVideoFileActive) return; // Safety check
+
+            const frameStartTime = performance.now();
+            const img = new Image();
+
+            img.onload = function () {
+                // Update canvas size if needed
+                if (videoFileCanvas.width !== img.width || videoFileCanvas.height !== img.height) {
+                    videoFileCanvas.width = img.width;
+                    videoFileCanvas.height = img.height;
+                    smartLog(`📄 Video file canvas resized to ${img.width}x${img.height}`);
+                }
+
+                // Draw frame to canvas
+                videoFileCtx.drawImage(img, 0, 0);
+                URL.revokeObjectURL(img.src);
+
+                // Performance monitoring
+                const frameEndTime = performance.now();
+                const processingTime = frameEndTime - frameStartTime;
+                recordPerformance('video-file', processingTime);
+
+                // Frame rate monitoring
+                videoFileFrameCount++;
+                const now = Date.now();
+                if (now - videoFileLastFrameTime > 5000) { // Report every 5 seconds
+                    const fps = (videoFileFrameCount / ((now - videoFileLastFrameTime) / 1000)).toFixed(1);
+                    const avgProcessing = performanceMetrics.frameProcessingTimes.length > 0 ?
+                        (performanceMetrics.frameProcessingTimes.reduce((a, b) => a + b) / performanceMetrics.frameProcessingTimes.length).toFixed(2) : 0;
+                    smartLog(`🎬 Video File: ${fps} FPS, avg processing: ${avgProcessing}ms`);
+                    videoFileFrameCount = 0;
+                    videoFileLastFrameTime = now;
+                    performanceMetrics.frameProcessingTimes = []; // Reset for next period
+                }
+            };
+
+            img.onerror = function () {
+                smartLog('❌ Error loading video file frame');
+                URL.revokeObjectURL(img.src);
+            };
+
+            img.src = URL.createObjectURL(blob);
+        }
+
+        function updateVideoFileStatus(status, state = '') {
+            const statusEl = document.getElementById('videoFileStatusText');
+            const containerEl = document.getElementById('videoFileStatus');
+
+            statusEl.textContent = status;
+            containerEl.style.display = 'block';
+
+            containerEl.className = 'video-file-status';
+            if (state) {
+                containerEl.classList.add(state);
+            }
+        }
+
+        function refreshVideoFileList() {
+            smartLog('🔄 Refreshing video file list...');
+            checkVideoFileAvailability();
         }
     </script>
 </body>
