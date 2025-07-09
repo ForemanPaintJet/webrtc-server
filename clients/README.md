@@ -1,6 +1,6 @@
 # WebRTC Client Samples Guide
 
-This directory contains multiple WebRTC client samples that demonstrate different use cases and approaches for connecting to your WebRTC signaling server with OAK camera and GStreamer support.
+This directory contains multiple WebRTC client samples that demonstrate different use cases and approaches for connecting to your WebRTC signaling server with OAK camera support.
 
 ## 🚀 Quick Start
 
@@ -21,12 +21,11 @@ This directory contains multiple WebRTC client samples that demonstrate differen
 ### 1. 🎯 Enhanced OAK Client (RECOMMENDED)
 **URL:** http://localhost:8000/clients/oak_websocket_client.html
 
-The most advanced client with full OAK camera and GStreamer support.
+The most advanced client with full OAK camera support.
 
 **Features:**
 - OAK camera integration with 1280x720@30fps
-- Real GStreamer hardware acceleration
-- Technology selection (WebCodecs/GStreamer/Canvas)
+- Technology selection (WebCodecs/Canvas)
 - Real-time status indicators
 - Performance comparison tools
 - Automatic fallback handling

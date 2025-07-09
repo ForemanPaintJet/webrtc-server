@@ -1,4 +1,4 @@
-# Use Ubuntu as base image for better GStreamer support
+# Use Ubuntu as base image for OAK camera support
 FROM ubuntu:22.04
 
 # Set environment variables
@@ -20,14 +20,6 @@ RUN apt-get update && apt-get install -y \
     git \
     wget \
     curl \
-    # GStreamer dependencies
-    gstreamer1.0-tools \
-    gstreamer1.0-plugins-base \
-    gstreamer1.0-plugins-good \
-    gstreamer1.0-plugins-bad \
-    gstreamer1.0-plugins-ugly \
-    libgstreamer1.0-dev \
-    libgstreamer-plugins-base1.0-dev \
     # OpenCV dependencies
     libopencv-dev \
     python3-opencv \

@@ -358,14 +358,6 @@
             background: linear-gradient(45deg, #ff3838, #c44569);
         }
 
-        .tech-option.gstreamer {
-            background: linear-gradient(45deg, #4ecdc4, #44a08d);
-        }
-
-        .tech-option.gstreamer.active {
-            background: linear-gradient(45deg, #26d0ce, #1a9850);
-        }
-
         .tech-option.canvas {
             background: linear-gradient(45deg, #45b7d1, #96c93d);
         }
@@ -474,11 +466,6 @@
             color: white;
         }
 
-        .tech-label.gstreamer {
-            background: linear-gradient(45deg, #4ecdc4, #44a08d);
-            color: white;
-        }
-
         .tech-label.canvas {
             background: linear-gradient(45deg, #45b7d1, #96c93d);
             color: white;
@@ -494,10 +481,6 @@
 
         .advantages-panel.webcodecs {
             border-left-color: #ff6b6b;
-        }
-
-        .advantages-panel.gstreamer {
-            border-left-color: #4ecdc4;
         }
 
         .advantages-panel.canvas {
@@ -696,14 +679,6 @@
                     🔥 WebCodecs
                     <span class="performance-badge performance-excellent">Best</span>
                 </button>
-                <button class="tech-option gstreamer" id="techGstreamer" onclick="selectStreamingTech('gstreamer')">
-                    🚀 GStreamer
-                    <span class="performance-badge performance-good">Good</span>
-                    <div class="gstreamer-status" id="gstreamerStatusIndicator"
-                        style="font-size: 10px; margin-top: 2px; font-weight: bold;">
-                        Checking...
-                    </div>
-                </button>
                 <button class="tech-option canvas active" id="techCanvas" onclick="selectStreamingTech('canvas')">
                     🎨 Canvas
                     <span class="performance-badge performance-basic">Compatible</span>
@@ -722,7 +697,7 @@
         <div class="comparison-mode" id="comparisonMode" style="display: none;">
             <h3>📊 Visual Technology Comparison</h3>
             <p style="margin-bottom: 15px; color: #666; text-align: center;">
-                Compare WebCodecs, GStreamer, and Canvas streaming technologies side-by-side with real-time performance
+                Compare WebCodecs and Canvas streaming technologies side-by-side with real-time performance
                 metrics
             </p>
             <div class="controls">
@@ -810,14 +785,6 @@
                 compatibility: 'Chrome only',
                 description: 'Hardware-accelerated encoding/decoding with lowest latency. Best performance but limited browser support.'
             },
-            gstreamer: {
-                supported: true, // Will check bridge availability at runtime
-                name: 'GStreamer',
-                performance: 'good',
-                latency: '~5-8ms',
-                compatibility: 'Most browsers',
-                description: 'Real GStreamer pipelines with hardware acceleration. Falls back to optimized canvas if GStreamer bridge unavailable.'
-            },
             canvas: {
                 supported: true, // Always supported
                 name: 'Canvas',
@@ -834,7 +801,6 @@
         let comparisonCanvases = {};
         let comparisonPerformance = {
             webcodecs: { frameCount: 0, processingTimes: [], lastFrameTime: 0, avgFps: 0, avgProcessing: 0 },
-            gstreamer: { frameCount: 0, processingTimes: [], lastFrameTime: 0, avgFps: 0, avgProcessing: 0 },
             canvas: { frameCount: 0, processingTimes: [], lastFrameTime: 0, avgFps: 0, avgProcessing: 0 }
         };
 
@@ -893,33 +859,12 @@
                 console.log('⚡ Initializing streaming tech...');
                 initializeStreamingTech();
 
-                // Check GStreamer status after a brief delay
-                setTimeout(checkGStreamerStatus, 2000);
-
                 console.log('✅ Initialization complete');
             } catch (error) {
                 console.error('❌ Error during initialization:', error);
                 alert('Error initializing app: ' + error.message);
             }
         };
-
-        function checkGStreamerStatus() {
-            smartLog('🔍 Checking GStreamer bridge availability...');
-            connectToGStreamerBridge().then(connected => {
-                if (connected) {
-                    smartLog('✅ GStreamer bridge is available');
-                    smartLog('🔧 Checking for real GStreamer installation...');
-                } else {
-                    smartLog('⚠️ GStreamer bridge not available - using fallback mode');
-                    smartLog('💡 To install GStreamer: brew install gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad');
-                    updateGStreamerStatusIndicator();
-                }
-            }).catch(error => {
-                smartLog(`❌ GStreamer bridge check failed: ${error.message}`);
-                smartLog('💡 Make sure the server is running: python start_comprehensive_servers.py');
-                updateGStreamerStatusIndicator();
-            });
-        }
 
         // Enhanced logging system
         let logEntries = [];
@@ -1445,16 +1390,6 @@
                             }
                             break;
 
-                        case 'gstreamer':
-                            success = await tryGStreamerStream();
-                            if (success) {
-                                smartLog('✅ Using GStreamer for balanced performance');
-                            } else {
-                                smartLog('❌ GStreamer failed, falling back to Canvas');
-                                success = await startCanvasStream();
-                            }
-                            break;
-
                         case 'canvas':
                         default:
                             success = await startCanvasStream();
@@ -1476,17 +1411,37 @@
                     smartLog('✅ Regular camera stream ready for WebRTC');
 
                 } else if (isVideoFileConnected && !localStream) {
-                    // Handle video file streaming with canvas
-                    smartLog('📄 Starting video file streaming...');
+                    // Handle video file streaming with selected technology
+                    smartLog(`📄 Starting video file streaming with ${streamingTechCapabilities[selectedStreamingTech].name}...`);
                     isVideoFileActive = true;
 
-                    // Create stream from video file canvas
-                    const success = await startVideoFileCanvasStream();
-                    if (success) {
-                        smartLog('✅ Video file stream ready for WebRTC');
-                    } else {
-                        throw new Error('Failed to start video file stream');
+                    // Use the selected streaming technology for video file
+                    let success = false;
+                    switch (selectedStreamingTech) {
+                        case 'webcodecs':
+                            success = await tryVideoFileWebCodecsStream();
+                            if (success) {
+                                smartLog('✅ Using WebCodecs for video file streaming');
+                            } else {
+                                smartLog('❌ WebCodecs failed for video file, falling back to Canvas');
+                                success = await startVideoFileCanvasStream();
+                            }
+                            break;
+
+                        case 'canvas':
+                        default:
+                            success = await startVideoFileCanvasStream();
+                            if (success) {
+                                smartLog('✅ Using Canvas for video file streaming');
+                            }
+                            break;
                     }
+
+                    if (!success) {
+                        throw new Error('Failed to start video file stream with any method');
+                    }
+
+                    smartLog('✅ Video file stream ready for WebRTC');
 
                 } else if (!localStream) {
                     alert('Please connect a camera or video file first (regular camera, OAK, or video file)');
@@ -1528,6 +1483,13 @@
 
             // Note: We keep localStream running so user can see their own camera
             // Only stop it if they explicitly disconnect the camera
+
+            // Clean up any additional canvas elements
+            if (localStream && localStream._additionalCanvas) {
+                smartLog('🧹 Cleaning up additional canvas from stream');
+                localStream._additionalCanvas.remove();
+                delete localStream._additionalCanvas;
+            }
 
             isOAKActive = false;
 
@@ -1805,17 +1767,6 @@
 
             let description = tech.description;
 
-            // Add real-time status for GStreamer
-            if (tech.name === 'GStreamer') {
-                if (gstreamerStatus.connected && gstreamerStatus.available) {
-                    description = '🚀 <strong>Real GStreamer</strong>: Using actual hardware-accelerated pipelines with gst-launch. Best balance of performance and compatibility.';
-                } else if (gstreamerStatus.connected && !gstreamerStatus.available) {
-                    description = '⚠️ <strong>GStreamer Fallback</strong>: GStreamer not installed on system. Using optimized canvas processing that mimics GStreamer behavior.';
-                } else {
-                    description = '🔄 <strong>GStreamer (Checking...)</strong>: Attempting to connect to GStreamer bridge. Will fall back to optimized canvas if unavailable.';
-                }
-            }
-
             infoEl.innerHTML = `
                 <strong>${tech.name}:</strong> ${description}<br>
                 <strong>Performance:</strong> ${tech.latency} latency | 
@@ -1901,12 +1852,7 @@
                         <p><strong>Use case:</strong> Real-time applications, gaming, professional streaming</p>
                         <p><strong>Trade-off:</strong> Chrome-only compatibility</p>
                     </div>
-                    <div style="text-align: center;">
-                        <h5 style="color: #4ecdc4; margin-bottom: 10px;">🚀 GStreamer</h5>
-                        <p><strong>Best for:</strong> Production deployments</p>
-                        <p><strong>Use case:</strong> Cross-platform applications, enterprise solutions</p>
-                        <p><strong>Trade-off:</strong> Moderate complexity</p>
-                    </div>
+
                     <div style="text-align: center;">
                         <h5 style="color: #45b7d1; margin-bottom: 10px;">🎨 Canvas</h5>
                         <p><strong>Best for:</strong> Universal compatibility</p>
@@ -1918,7 +1864,6 @@
                     <h5>💡 Performance Tips:</h5>
                     <ul style="margin: 10px 0; padding-left: 20px;">
                         <li><strong>WebCodecs:</strong> Watch for the lowest latency and highest FPS</li>
-                        <li><strong>GStreamer:</strong> Notice the balanced performance across metrics</li>
                         <li><strong>Canvas:</strong> Observe consistent frame delivery despite higher latency</li>
                     </ul>
                 </div>
@@ -2005,9 +1950,6 @@
                     case 'webcodecs':
                         stream = await createWebCodecsComparisonStream(tech);
                         break;
-                    case 'gstreamer':
-                        stream = await createGStreamerComparisonStream(tech);
-                        break;
                     case 'canvas':
                         stream = await createCanvasComparisonStream(tech);
                         break;
@@ -2028,8 +1970,6 @@
             switch (tech) {
                 case 'webcodecs':
                     return '<span class="winner-badge winner-performance">🏆 Performance</span>';
-                case 'gstreamer':
-                    return '<span class="winner-badge winner-balance">⚖️ Balance</span>';
                 case 'canvas':
                     return '<span class="winner-badge winner-compatibility">🌐 Compatibility</span>';
                 default:
@@ -2045,13 +1985,6 @@
                     { icon: '💎', text: 'Best video quality' },
                     { icon: '🔋', text: 'Low CPU usage' },
                     { icon: '⚠️', text: 'Chrome only', negative: true }
-                ],
-                gstreamer: [
-                    { icon: '⚖️', text: 'Balanced performance' },
-                    { icon: '🔧', text: 'Configurable pipeline' },
-                    { icon: '🌍', text: 'Cross-browser support' },
-                    { icon: '📊', text: 'Good latency (~5-8ms)' },
-                    { icon: '🛠️', text: 'Production ready' }
                 ],
                 canvas: [
                     { icon: '🌐', text: 'Universal compatibility' },
@@ -2110,38 +2043,6 @@
                             frame.close();
                             bitmap.close();
                         }).catch(console.error);
-                    }).catch(console.error);
-                }
-            };
-
-            return stream;
-        }
-
-        async function createGStreamerComparisonStream(tech) {
-            const canvas = comparisonCanvases[tech];
-            const ctx = canvas.getContext('2d');
-            const stream = canvas.captureStream(30);
-
-            // Handle frames with GStreamer-style processing
-            const originalOnMessage = oakWs.onmessage;
-            oakWs.onmessage = function (event) {
-                if (originalOnMessage) originalOnMessage(event);
-
-                if (event.data instanceof Blob && isComparisonMode) {
-                    const frameStartTime = performance.now();
-
-                    createImageBitmap(event.data).then(bitmap => {
-                        if (canvas.width !== bitmap.width || canvas.height !== bitmap.height) {
-                            canvas.width = bitmap.width;
-                            canvas.height = bitmap.height;
-                        }
-
-                        ctx.imageSmoothingEnabled = false; // GStreamer-style optimization
-                        ctx.drawImage(bitmap, 0, 0);
-
-                        const processingTime = performance.now() - frameStartTime;
-                        updateComparisonPerformance(tech, processingTime);
-                        bitmap.close();
                     }).catch(console.error);
                 }
             };
@@ -2288,12 +2189,6 @@
                 else if (fps >= 20 && latency <= 12) quality = 4;
                 else if (fps >= 15) quality = 3;
                 else quality = 2;
-            } else if (tech === 'gstreamer') {
-                // GStreamer should have good balance
-                if (fps >= 20 && latency <= 15) quality = 5;
-                else if (fps >= 15 && latency <= 20) quality = 4;
-                else if (fps >= 10) quality = 3;
-                else quality = 2;
             } else if (tech === 'canvas') {
                 // Canvas expected to have higher latency but good compatibility
                 if (fps >= 15 && latency <= 25) quality = 5;
@@ -2387,7 +2282,6 @@
         function getAdvantagesSummary(tech) {
             const summaries = {
                 webcodecs: 'Hardware acceleration, lowest latency',
-                gstreamer: 'Cross-platform, balanced performance',
                 canvas: 'Universal compatibility, easy implementation'
             };
             return summaries[tech] || 'Unknown';
@@ -2569,306 +2463,6 @@
                 return false;
             } catch (error) {
                 log(`❌ Insertable Streams failed: ${error.message}`);
-                return false;
-            }
-        }
-
-        // GStreamer WebSocket connection
-        let gstreamerWs = null;
-        let gstreamerStatus = {
-            available: false,
-            connected: false,
-            streaming: false,
-            pipelines: []
-        };
-
-        async function connectToGStreamerBridge() {
-            try {
-                if (gstreamerWs && gstreamerWs.readyState === WebSocket.OPEN) {
-                    return true;
-                }
-
-                log('🔗 Connecting to GStreamer bridge...');
-                gstreamerWs = new WebSocket('ws://localhost:8767');
-
-                return new Promise((resolve, reject) => {
-                    const timeout = setTimeout(() => {
-                        reject(new Error('GStreamer bridge connection timeout'));
-                    }, 5000);
-
-                    gstreamerWs.onopen = function () {
-                        clearTimeout(timeout);
-                        log('✅ Connected to GStreamer bridge');
-                        gstreamerStatus.connected = true;
-                        resolve(true);
-                    };
-
-                    gstreamerWs.onmessage = function (event) {
-                        try {
-                            const data = JSON.parse(event.data);
-                            handleGStreamerMessage(data);
-                        } catch (error) {
-                            log(`❌ GStreamer message error: ${error.message}`);
-                        }
-                    };
-
-                    gstreamerWs.onerror = function (error) {
-                        clearTimeout(timeout);
-                        log(`❌ GStreamer bridge connection error: ${error}`);
-                        gstreamerStatus.connected = false;
-                        reject(error);
-                    };
-
-                    gstreamerWs.onclose = function () {
-                        log('🔌 GStreamer bridge disconnected');
-                        gstreamerStatus.connected = false;
-                        gstreamerStatus.streaming = false;
-                    };
-                });
-
-            } catch (error) {
-                log(`❌ Failed to connect to GStreamer bridge: ${error.message}`);
-                return false;
-            }
-        }
-
-        function handleGStreamerMessage(data) {
-            switch (data.type) {
-                case 'gstreamer_status':
-                    gstreamerStatus.available = data.available;
-                    gstreamerStatus.pipelines = data.pipelines || [];
-                    gstreamerStatus.streaming = data.streaming;
-
-                    if (data.available) {
-                        log(`✅ Real GStreamer detected! Available pipelines: ${data.pipelines.join(', ')}`);
-                        log('🚀 Hardware-accelerated streaming enabled');
-                    } else {
-                        log('⚠️ GStreamer not installed on system - using optimized fallback');
-                        log('� Install with: brew install gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad');
-                    }
-
-                    log(`📊 GStreamer status: Available=${data.available}, Streaming=${data.streaming}`);
-
-                    // Update status indicator
-                    updateGStreamerStatusIndicator();
-                    break;
-
-                case 'pipeline_response':
-                    if (data.command === 'start') {
-                        gstreamerStatus.streaming = data.success;
-                        if (data.success) {
-                            log(`✅ GStreamer pipeline '${data.pipeline}' started successfully`);
-                            log('🔥 Hardware acceleration active!');
-                        } else {
-                            log(`❌ Failed to start GStreamer pipeline '${data.pipeline}'`);
-                        }
-                    } else if (data.command === 'stop') {
-                        gstreamerStatus.streaming = false;
-                        log('🛑 GStreamer pipeline stopped');
-                    }
-                    updateGStreamerStatusIndicator();
-                    break;
-
-                case 'status':
-                    gstreamerStatus.streaming = data.streaming;
-                    gstreamerStatus.available = data.gstreamer_available;
-                    updateGStreamerStatusIndicator();
-                    break;
-
-                case 'pipelines':
-                    gstreamerStatus.pipelines = Object.keys(data.pipelines);
-                    log(`🔧 Available GStreamer pipelines: ${gstreamerStatus.pipelines.join(', ')}`);
-                    updateGStreamerStatusIndicator();
-                    break;
-            }
-        }
-
-        function updateGStreamerStatusIndicator() {
-            const indicator = document.getElementById('gstreamerStatusIndicator');
-            if (!indicator) return;
-
-            if (gstreamerStatus.connected && gstreamerStatus.available) {
-                indicator.textContent = 'Real GStreamer ✅';
-                indicator.style.color = '#4CAF50';
-                indicator.title = 'Hardware-accelerated GStreamer pipelines available';
-            } else if (gstreamerStatus.connected && !gstreamerStatus.available) {
-                indicator.textContent = 'Fallback Mode ⚠️';
-                indicator.style.color = '#FF9800';
-                indicator.title = 'GStreamer not installed - using optimized canvas fallback';
-            } else if (gstreamerStatus.connected) {
-                indicator.textContent = 'Connected 🔗';
-                indicator.style.color = '#2196F3';
-                indicator.title = 'Connected to GStreamer bridge';
-            } else {
-                indicator.textContent = 'Bridge Offline ❌';
-                indicator.style.color = '#f44336';
-                indicator.title = 'Cannot connect to GStreamer bridge server';
-            }
-
-            // Update tech info if GStreamer is selected
-            if (selectedStreamingTech === 'gstreamer') {
-                updateStreamingTechInfo();
-            }
-        }
-
-        function sendGStreamerCommand(command, data = {}) {
-            if (!gstreamerWs || gstreamerWs.readyState !== WebSocket.OPEN) {
-                log('❌ GStreamer bridge not connected');
-                return false;
-            }
-
-            const message = { command, ...data };
-            gstreamerWs.send(JSON.stringify(message));
-            return true;
-        }
-
-        async function tryGStreamerStream() {
-            try {
-                log('🚀 Attempting real GStreamer streaming...');
-
-                // Connect to GStreamer bridge
-                const connected = await connectToGStreamerBridge();
-                if (!connected) {
-                    log('❌ Could not connect to GStreamer bridge, falling back to optimized canvas');
-                    return await tryGStreamerFallback();
-                }
-
-                // Check if GStreamer is available on the system
-                if (!gstreamerStatus.available) {
-                    log('❌ GStreamer not available on system, falling back to optimized canvas');
-                    return await tryGStreamerFallback();
-                }
-
-                // Get available pipelines
-                sendGStreamerCommand('list_pipelines');
-
-                // Wait a moment for pipeline list
-                await new Promise(resolve => setTimeout(resolve, 500));
-
-                // Start a GStreamer pipeline (prefer optimized, fallback to basic)
-                const pipelineToUse = gstreamerStatus.pipelines.includes('optimized') ? 'optimized' : 'basic';
-
-                if (gstreamerStatus.pipelines.length === 0) {
-                    log('❌ No GStreamer pipelines available, falling back to optimized canvas');
-                    return await tryGStreamerFallback();
-                }
-
-                log(`🔧 Starting GStreamer pipeline: ${pipelineToUse}`);
-                sendGStreamerCommand('start_pipeline', { pipeline: pipelineToUse });
-
-                // Wait for pipeline to start
-                await new Promise(resolve => setTimeout(resolve, 2000));
-
-                if (!gstreamerStatus.streaming) {
-                    log('❌ GStreamer pipeline failed to start, falling back to optimized canvas');
-                    return await tryGStreamerFallback();
-                }
-
-                // For now, use canvas capture while GStreamer handles the backend processing
-                // In a full implementation, this would receive the GStreamer stream directly
-                const canvasStream = oakCanvas.captureStream(30);
-
-                // Add audio
-                const audioStream = await navigator.mediaDevices.getUserMedia({
-                    audio: true,
-                    video: false
-                });
-
-                localStream = new MediaStream([
-                    ...canvasStream.getVideoTracks(),
-                    ...audioStream.getAudioTracks()
-                ]);
-
-                localStream.id = 'oak-stream-gstreamer-real';
-                document.getElementById('localVideo').srcObject = localStream;
-
-                // Reset performance counters
-                frameCount = 0;
-                lastFrameTime = Date.now();
-                performanceMetrics.frameProcessingTimes = [];
-
-                log('✅ Real GStreamer streaming initialized with backend pipeline');
-                log('📝 Note: Backend GStreamer pipeline is processing frames with hardware acceleration');
-                return true;
-
-            } catch (error) {
-                log(`❌ Real GStreamer stream failed: ${error.message}`);
-                log('🔄 Falling back to optimized canvas processing...');
-                return await tryGStreamerFallback();
-            }
-        }
-
-        async function tryGStreamerFallback() {
-            try {
-                log('🔄 Using GStreamer fallback (optimized canvas processing)...');
-
-                // Create optimized canvas stream with GStreamer-like processing
-                const canvasStream = oakCanvas.captureStream(30);
-
-                // Add audio
-                const audioStream = await navigator.mediaDevices.getUserMedia({
-                    audio: true,
-                    video: false
-                });
-
-                localStream = new MediaStream([
-                    ...canvasStream.getVideoTracks(),
-                    ...audioStream.getAudioTracks()
-                ]);
-
-                localStream.id = 'oak-stream-gstreamer-fallback';
-                document.getElementById('localVideo').srcObject = localStream;
-
-                // Reset performance counters
-                frameCount = 0;
-                lastFrameTime = Date.now();
-                performanceMetrics.frameProcessingTimes = [];
-
-                // Override OAK message handler for GStreamer-optimized processing
-                oakWs.onmessage = function (event) {
-                    if (event.data instanceof Blob && isOAKActive) {
-                        const frameStartTime = performance.now();
-
-                        createImageBitmap(event.data).then(bitmap => {
-                            // GStreamer-style optimized processing
-                            if (oakCanvas.width !== bitmap.width || oakCanvas.height !== bitmap.height) {
-                                oakCanvas.width = bitmap.width;
-                                oakCanvas.height = bitmap.height;
-                                log(`🚀 GStreamer fallback canvas resized to ${bitmap.width}x${bitmap.height}`);
-                            }
-
-                            // Optimized drawing with potential hardware acceleration
-                            oakCtx.imageSmoothingEnabled = false; // Faster rendering
-                            oakCtx.drawImage(bitmap, 0, 0);
-
-                            const frameEndTime = performance.now();
-                            const processingTime = frameEndTime - frameStartTime;
-                            recordPerformance('gstreamer', processingTime);
-
-                            // Frame rate monitoring
-                            frameCount++;
-                            const now = Date.now();
-                            if (now - lastFrameTime > 5000) {
-                                const fps = (frameCount / ((now - lastFrameTime) / 1000)).toFixed(1);
-                                const avgProcessing = performanceMetrics.frameProcessingTimes.length > 0 ?
-                                    (performanceMetrics.frameProcessingTimes.reduce((a, b) => a + b) / performanceMetrics.frameProcessingTimes.length).toFixed(2) : 0;
-                                log(`🚀 GStreamer fallback: ${fps} FPS, avg processing: ${avgProcessing}ms`);
-                                frameCount = 0;
-                                lastFrameTime = now;
-                                performanceMetrics.frameProcessingTimes = [];
-                            }
-
-                            bitmap.close();
-                        }).catch(error => {
-                            log(`❌ GStreamer fallback frame processing error: ${error.message}`);
-                        });
-                    }
-                };
-
-                log('✅ GStreamer fallback (optimized canvas) initialized');
-                return true;
-            } catch (error) {
-                log(`❌ GStreamer fallback failed: ${error.message}`);
                 return false;
             }
         }
@@ -3226,6 +2820,97 @@
             smartLog('🔄 Refreshing video file list...');
             checkVideoFileAvailability();
         }
+
+        async function tryVideoFileWebCodecsStream() {
+            try {
+                // Check WebCodecs support
+                if (!window.MediaStreamTrackGenerator || !window.VideoFrame) {
+                    smartLog('⚠️ WebCodecs not supported for video file streaming');
+                    return false;
+                }
+
+                smartLog('🧪 Attempting direct WebCodecs video file streaming...');
+
+                // Create video track generator for direct streaming
+                const trackGenerator = new MediaStreamTrackGenerator({ kind: 'video' });
+                const writer = trackGenerator.writable.getWriter();
+
+                // Add audio
+                const audioStream = await navigator.mediaDevices.getUserMedia({
+                    audio: true,
+                    video: false
+                });
+
+                localStream = new MediaStream([
+                    trackGenerator,
+                    ...audioStream.getAudioTracks()
+                ]);
+
+                localStream.id = 'video-file-stream-webcodecs';
+                document.getElementById('localVideo').srcObject = localStream;
+
+                // Reset performance counters
+                videoFileFrameCount = 0;
+                videoFileLastFrameTime = Date.now();
+                performanceMetrics.frameProcessingTimes = [];
+
+                // Direct WebCodecs processing - no canvas intermediary
+                const originalOnMessage = videoFileWs.onmessage;
+                videoFileWs.onmessage = function (event) {
+                    if (event.data instanceof Blob && isVideoFileActive) {
+                        const frameStartTime = performance.now();
+
+                        // Direct blob to VideoFrame conversion
+                        createImageBitmap(event.data).then(bitmap => {
+                            // Create VideoFrame directly from the bitmap
+                            const frame = new VideoFrame(bitmap, {
+                                timestamp: performance.now() * 1000, // Convert to microseconds
+                                duration: 33333 // ~30fps in microseconds
+                            });
+
+                            // Write directly to WebCodecs stream
+                            writer.write(frame).then(() => {
+                                // Performance monitoring
+                                const frameEndTime = performance.now();
+                                const processingTime = frameEndTime - frameStartTime;
+                                recordPerformance('webcodecs-video-file-direct', processingTime);
+
+                                // Frame rate monitoring
+                                videoFileFrameCount++;
+                                const now = Date.now();
+                                if (now - videoFileLastFrameTime > 5000) {
+                                    const fps = (videoFileFrameCount / ((now - videoFileLastFrameTime) / 1000)).toFixed(1);
+                                    const avgProcessing = performanceMetrics.frameProcessingTimes.length > 0 ?
+                                        (performanceMetrics.frameProcessingTimes.reduce((a, b) => a + b) / performanceMetrics.frameProcessingTimes.length).toFixed(2) : 0;
+                                    smartLog(`🎬 Video File WebCodecs Direct: ${fps} FPS, avg processing: ${avgProcessing}ms`);
+                                    videoFileFrameCount = 0;
+                                    videoFileLastFrameTime = now;
+                                    performanceMetrics.frameProcessingTimes = [];
+                                }
+                            }).catch(err => {
+                                smartLog(`❌ WebCodecs direct write error: ${err.message}`);
+                            });
+
+                            bitmap.close();
+                        }).catch(error => {
+                            smartLog(`❌ WebCodecs direct frame processing error: ${error.message}`);
+                        });
+                    } else {
+                        // Handle JSON messages normally
+                        if (originalOnMessage && !(event.data instanceof Blob)) {
+                            originalOnMessage.call(this, event);
+                        }
+                    }
+                };
+
+                smartLog('✅ Direct WebCodecs video file streaming initialized');
+                return true;
+            } catch (error) {
+                smartLog(`❌ Direct WebCodecs video file streaming failed: ${error.message}`);
+                return false;
+            }
+        }
+
     </script>
 </body>
 

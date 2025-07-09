@@ -6,7 +6,7 @@ services:
       - "8000:8000"   # HTTP Client Server
       - "8765:8765"   # WebSocket Signaling Server
       - "8766:8766"   # OAK Camera Bridge
-      - "8767:8767"   # GStreamer Bridge
+      - "8768:8768"   # Video File Bridge
     volumes:
       # Mount source code for live development
       - ../../:/app

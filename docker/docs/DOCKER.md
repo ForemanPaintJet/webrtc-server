@@ -65,7 +65,7 @@ docker run -d \
   -p 8000:8000 \
   -p 8765:8765 \
   -p 8766:8766 \
-  -p 8767:8767 \
+  -p 8768:8768 \
   --device=/dev/bus/usb \
   -v $(pwd)/logs:/app/logs \
   webrtc-oak-server
@@ -86,7 +86,7 @@ docker run -d \
   -p 8000:8000 \
   -p 8765:8765 \
   -p 8766:8766 \
-  -p 8767:8767 \
+  -p 8768:8768 \
   webrtc-oak-server
 
 # Alternative: Specific device access (Linux/Windows only)
@@ -98,7 +98,7 @@ docker run -d \
   -p 8000:8000 \
   -p 8765:8765 \
   -p 8766:8766 \
-  -p 8767:8767 \
+  -p 8768:8768 \
   --privileged \
   --device=/dev/bus/usb \
   -v /dev/bus/usb:/dev/bus/usb \
@@ -117,7 +117,7 @@ docker run -d \
   --name webrtc-oak-server \
   -p 8000:8000 \
   -p 8765:8765 \
-  -p 8767:8767 \
+  -p 8768:8768 \
   webrtc-oak-server
 ```
 
@@ -131,7 +131,7 @@ docker run -d \
   --name webrtc-oak-server \
   -p 8000:8000 \
   -p 8765:8765 \
-  -p 8767:8767 \
+  -p 8768:8768 \
   webrtc-oak-server
 ```
 
@@ -143,7 +143,7 @@ Once running, access the application at:
 - **Legacy OAK Client**: http://localhost:8000/oak
 - **WebSocket Signaling**: ws://localhost:8765
 - **OAK Camera Bridge**: ws://localhost:8766
-- **GStreamer Bridge**: ws://localhost:8767
+- **Video File Bridge**: ws://localhost:8768
 
 ## 🔧 Configuration
 
@@ -241,7 +241,7 @@ docker exec -it webrtc-oak-server /bin/bash
      --name webrtc-oak-server \
      --privileged \
      -v /dev:/dev \
-     -p 8000:8000 -p 8765:8765 -p 8766:8766 -p 8767:8767 \
+     -p 8000:8000 -p 8765:8765 -p 8766:8766 -p 8768:8768 \
      webrtc-oak-server
    ```
 
@@ -267,13 +267,7 @@ docker exec -it webrtc-oak-server /bin/bash
    docker exec webrtc-oak-server ls -la /dev/video*
    ```
 
-5. **GStreamer Not Working**
-   ```bash
-   # Check GStreamer installation
-   docker exec webrtc-oak-server gst-launch-1.0 --version
-   ```
-
-6. **Port Conflicts**
+5. **Port Conflicts**
    ```bash
    # Check if ports are already in use
    netstat -tulpn | grep :8000
@@ -293,7 +287,7 @@ docker run -d \
   -p 8000:8000 \
   -p 8765:8765 \
   -p 8766:8766 \
-  -p 8767:8767 \
+  -p 8768:8768 \
   -v $(pwd):/app \
   --device=/dev/bus/usb \
   webrtc-oak-server

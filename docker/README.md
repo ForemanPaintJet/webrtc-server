@@ -99,7 +99,7 @@ For comprehensive Docker usage, troubleshooting, and deployment guides, see:
 
 This Docker setup integrates with:
 - **OAK Camera Bridge** - Hardware camera access
-- **GStreamer Pipeline** - Video processing
+- **Video File Bridge** - Video file streaming
 - **WebRTC Signaling** - Real-time communication
 - **WebSocket Servers** - Client connections
 
@@ -111,7 +111,7 @@ Client Browser ←→ Nginx (80/443) ←→ Python Services
                 WebSocket Connections:
                 - 8765: WebRTC Signaling
                 - 8766: OAK Camera Bridge
-                - 8767: GStreamer Bridge
+                - 8768: Video File Bridge
 ```
 
 ## 🔧 Customization

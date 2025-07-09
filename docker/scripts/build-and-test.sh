@@ -97,10 +97,10 @@ else
     print_warning "OAK camera bridge port 8766 not accessible"
 fi
 
-if nc -z localhost 8767; then
-    print_status "GStreamer bridge is listening on port 8767"
+if nc -z localhost 8768; then
+    print_status "Video file bridge is listening on port 8768"
 else
-    print_warning "GStreamer bridge port 8767 not accessible"
+    print_warning "Video file bridge port 8768 not accessible"
 fi
 
 # Check container health
@@ -123,15 +123,6 @@ else
     print_warning "No USB device access - OAK cameras will not be available"
 fi
 
-# Check GStreamer
-echo "🎬 Checking GStreamer support..."
-if docker exec webrtc-oak-server gst-launch-1.0 --version >/dev/null 2>&1; then
-    GSTREAMER_VERSION=$(docker exec webrtc-oak-server gst-launch-1.0 --version 2>/dev/null | head -n1)
-    print_status "GStreamer available: $GSTREAMER_VERSION"
-else
-    print_warning "GStreamer not available"
-fi
-
 echo ""
 echo "🎉 Docker setup complete!"
 echo ""
@@ -143,7 +134,7 @@ echo "🔧 Service endpoints:"
 echo "   HTTP Server: http://localhost:8000"
 echo "   WebSocket Signaling: ws://localhost:8765"
 echo "   OAK Camera Bridge: ws://localhost:8766"
-echo "   GStreamer Bridge: ws://localhost:8767"
+echo "   Video File Bridge: ws://localhost:8768"
 echo ""
 echo "📊 Management commands:"
 echo "   View logs: docker compose -f docker/compose/docker-compose.yml logs -f"

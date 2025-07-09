@@ -5,20 +5,14 @@ Comprehensive OAK Camera Server Startup
 Starts all necessary servers for complete OAK camera WebRTC functionality:
 - OAK Camera Bridge (port 8766)
 - WebSocket Signaling Server (port 8765) 
-- GStreamer Bridge (port 8767) - with real GStreamer integration
 - Video File Bridge (port 8768) - streams video files via WebSocket
 - HTTP Client Server (port 8000)
 
 RECENT FIXES (Jul 2025):
-- ✅ Fixed GStreamer detection and installation support
+- ✅ Removed GStreamer dependencies for simplified deployment
 - ✅ Fixed WebSocket handler compatibility issues  
 - ✅ Enhanced error handling and fallback mechanisms
-- ✅ Added clear installation instructions for macOS/Ubuntu
 - ✅ Improved status reporting and user feedback
-
-GStreamer Installation:
-  macOS: brew install gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad
-  Ubuntu: sudo apt install gstreamer1.0-tools gstreamer1.0-plugins-base
 """
 
 import asyncio
@@ -68,23 +62,10 @@ class ComprehensiveOAKServer:
             logger.error("   pip install -r requirements.txt")
             return False
         
-        # Check GStreamer
-        try:
-            result = subprocess.run(['gst-launch-1.0', '--version'], 
-                                    capture_output=True, text=True, timeout=5)
-            if result.returncode == 0:
-                version = result.stdout.split('\n')[0]
-                logger.info(f"✅ GStreamer available: {version}")
-            else:
-                logger.warning("⚠️ GStreamer not available - GStreamer bridge will run in fallback mode")
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            logger.warning("⚠️ GStreamer not available - GStreamer bridge will run in fallback mode")
-        
         # Check if required files exist
         required_files = [
             'oak_camera_bridge.py',
             'websocket_server.py', 
-            'gstreamer_bridge.py',
             'video_file_bridge.py',
             'clients/oak_websocket_client.html'
         ]
@@ -125,21 +106,6 @@ class ComprehensiveOAKServer:
             return True
         except Exception as e:
             logger.error(f"❌ Failed to start WebSocket Signaling Server: {e}")
-            return False
-    
-    def start_gstreamer_bridge(self):
-        """Start the GStreamer bridge"""
-        logger.info("🚀 Starting GStreamer Bridge...")
-        try:
-            proc = subprocess.Popen([
-                sys.executable, 'gstreamer_bridge.py'
-            ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-            
-            self.processes['gstreamer_bridge'] = proc
-            logger.info("✅ GStreamer Bridge started (port 8767)")
-            return True
-        except Exception as e:
-            logger.error(f"❌ Failed to start GStreamer Bridge: {e}")
             return False
     
     def start_video_file_bridge(self):
@@ -200,7 +166,6 @@ class ComprehensiveOAKServer:
         servers = [
             ('OAK Camera Bridge', self.start_oak_camera_bridge),
             ('WebSocket Signaling Server', self.start_websocket_server),
-            ('GStreamer Bridge', self.start_gstreamer_bridge),
             ('Video File Bridge', self.start_video_file_bridge),
             ('HTTP Server', self.start_http_server)
         ]
@@ -222,8 +187,7 @@ class ComprehensiveOAKServer:
         logger.info("📊 Server Status:")
         logger.info("  🔶 OAK Camera Bridge:       ws://localhost:8766")
         logger.info("  🌐 WebSocket Signaling:     ws://localhost:8765") 
-        logger.info("  🚀 GStreamer Bridge:        ws://localhost:8767")
-        logger.info("  📄 Video File Bridge:       ws://localhost:8768")
+        logger.info("   Video File Bridge:       ws://localhost:8768")
         logger.info("  📁 HTTP Client Server:      http://localhost:8000")
         logger.info("")
         logger.info("🎯 Open client: http://localhost:8000/clients/oak_websocket_client.html")
@@ -236,7 +200,6 @@ class ComprehensiveOAKServer:
         logger.info("")
         logger.info("🔧 Available Streaming Technologies:")
         logger.info("  • WebCodecs: Hardware-accelerated, lowest latency (Chrome only)")
-        logger.info("  • GStreamer: Real pipelines with hardware acceleration + fallback")
         logger.info("  • Canvas: Universal compatibility, all browsers")
         logger.info("")
         logger.info("📊 Features:")

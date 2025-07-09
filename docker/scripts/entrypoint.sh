@@ -3,14 +3,6 @@ set -e
 
 echo "🐳 Starting WebRTC OAK Camera Server Container..."
 
-# Check if GStreamer is available
-echo "🔧 Checking GStreamer installation..."
-if command -v gst-launch-1.0 >/dev/null 2>&1; then
-    echo "✅ GStreamer available: $(gst-launch-1.0 --version | head -n1)"
-else
-    echo "⚠️  GStreamer not found, fallback mode will be used"
-fi
-
 # Check for OAK camera access (if running with device access)
 echo "🔶 Checking for OAK camera access..."
 if ls /dev/bus/usb/ >/dev/null 2>&1; then
@@ -58,7 +50,7 @@ echo "🚀 Starting WebRTC servers..."
 echo "📱 Client will be available at: http://localhost:8000/clients/oak_websocket_client.html"
 echo "🔧 Signaling server: ws://localhost:8765"
 echo "🔶 OAK camera bridge: ws://localhost:8766"
-echo "🎬 GStreamer bridge: ws://localhost:8767"
+echo "📄 Video file bridge: ws://localhost:8768"
 
 # Execute the command passed to the container
 exec "$@"
