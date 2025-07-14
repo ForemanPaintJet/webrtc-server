@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>OAK MQTT WebRTC Client</title>
+    <script src="https://unpkg.com/mqtt@4.3.7/dist/mqtt.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 2em;
+        }
+
+        .status {
+            margin-bottom: 1em;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+
+        .status.connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .status.disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        #logs {
+            height: 300px;
+            overflow-y: auto;
+            background: #f5f5f5;
+            padding: 1em;
+            border: 1px solid #ccc;
+            font-family: monospace;
+            font-size: 12px;
+        }
+
+        .video-container {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        video {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #000;
+        }
+
+        .controls {
+            margin-bottom: 20px;
+        }
+
+        button {
+            margin: 5px;
+            padding: 8px 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        input {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .role-selector {
+            margin: 10px 0;
+            padding: 10px;
+            background: #e8f4f8;
+            border-radius: 5px;
+        }
+
+        .state-info {
+            margin: 10px 0;
+            padding: 10px;
+            background: #fff3cd;
+            border-radius: 5px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>OAK MQTT WebRTC Client</h2>
+    <div class="status disconnected" id="status">Disconnected</div>
+
+    <div class="controls">
+        <input id="roomInput" placeholder="Room name" value="test-room" />
+        <button onclick="connectToBroker()">Connect MQTT</button>
+        <button onclick="joinRoom()">Join Room</button>
+        <button onclick="leaveRoom()">Leave Room</button>
+        <button onclick="startWebcam()">Start Webcam</button>
+        <button onclick="clearLogs()">Clear Logs</button>
+    </div>
+
+    <div class="role-selector">
+        <label>
+            <input type="radio" name="role" value="caller" checked> Caller (creates offer)
+        </label>
+        <label>
+            <input type="radio" name="role" value="callee"> Callee (waits for offer)
+        </label>
+        <button onclick="startCall()" id="startCallBtn">Start Call</button>
+        <button onclick="resetConnection()" id="resetBtn">Reset Connection</button>
+    </div>
+
+    <div class="state-info">
+        <div>Signaling State: <span id="signalingState">N/A</span></div>
+        <div>Connection State: <span id="connectionState">N/A</span></div>
+        <div>ICE State: <span id="iceState">N/A</span></div>
+    </div>
+
+    <div id="logs"></div>
+
+    <div class="video-container">
+        <div>
+            <h4>Local Video</h4>
+            <video id="localVideo" autoplay muted playsinline width="320"></video>
+        </div>
+        <div>
+            <h4>Remote Video</h4>
+            <video id="remoteVideo" autoplay playsinline width="320"></video>
+        </div>
+    </div>
+
+    <script>
+        // MQTT signaling variables
+        let mqttClient = null;
+        let clientId = 'client-' + Math.random().toString(16).substr(2, 8);
+        let currentRoom = null;
+        let roomTopic = null;
+        let isConnected = false;
+        let localStream = null;
+        let remoteStream = null;
+        let peerConnection = null;
+        let isInitiator = false;
+        let isNegotiating = false;
+        let pendingIceCandidates = [];
+
+        // Fixed RTCPeerConnection configuration
+        let rtcConfig = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ]
+        };
+
+        function log(msg) {
+            const logs = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            logs.innerHTML += `[${timestamp}] ${msg}<br/>`;
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+
+        function setStatus(msg, connected = false) {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = msg;
+            statusEl.className = `status ${connected ? 'connected' : 'disconnected'}`;
+        }
+
+        function updateStates() {
+            if (peerConnection) {
+                document.getElementById('signalingState').textContent = peerConnection.signalingState;
+                document.getElementById('connectionState').textContent = peerConnection.connectionState;
+                document.getElementById('iceState').textContent = peerConnection.iceConnectionState;
+            }
+        }
+
+        function connectToBroker() {
+            if (mqttClient && isConnected) {
+                log('Already connected to MQTT');
+                return;
+            }
+
+            try {
+                // Connect to localhost broker with WebSocket support
+                mqttClient = mqtt.connect('ws://localhost:8080/mqtt', {
+                    clientId: clientId,
+                    clean: true,
+                    connectTimeout: 4000,
+                    reconnectPeriod: 1000,
+                });
+
+                mqttClient.on('connect', () => {
+                    isConnected = true;
+                    setStatus('Connected to MQTT', true);
+                    log('✅ Connected to MQTT broker');
+                });
+
+                mqttClient.on('error', (error) => {
+                    setStatus('Connect failed', false);
+                    log('❌ MQTT connect error: ' + error.message);
+                });
+
+                mqttClient.on('close', () => {
+                    isConnected = false;
+                    setStatus('Disconnected', false);
+                    log('🔌 MQTT connection closed');
+                });
+
+                mqttClient.on('message', (topic, message) => {
+                    onMqttMessage(topic, message.toString());
+                });
+
+            } catch (error) {
+                log('❌ Error creating MQTT client: ' + error.message);
+            }
+        }
+
+        function joinRoom() {
+            if (!isConnected) {
+                log('❌ Connect to MQTT first');
+                return;
+            }
+
+            currentRoom = document.getElementById('roomInput').value.trim();
+            if (!currentRoom) {
+                log('❌ Enter room name');
+                return;
+            }
+
+            // Subscribe to personal topic for this room
+            roomTopic = `webrtc/room/${currentRoom}`;
+
+            mqttClient.subscribe(roomTopic, (error) => {
+                if (error) {
+                    log('❌ Subscribe error: ' + error.message);
+                    return;
+                }
+                log('✅ Subscribed to: ' + roomTopic);
+            });
+
+            // Send join message to the general room topic (legacy, not in new structure)
+            const joinMessage = {
+                type: 'join_room',
+                clientId: clientId,
+                videoSource: '',
+                room: currentRoom
+            };
+
+            mqttClient.publish(`webrtc/room/${currentRoom}`, JSON.stringify(joinMessage), (error) => {
+                if (error) {
+                    log('❌ Publish error: ' + error.message);
+                } else {
+                    setStatus('Joined room: ' + currentRoom, true);
+                    log('✅ Joined room: ' + currentRoom);
+                }
+            });
+        }
+
+        function leaveRoom() {
+            if (!isConnected || !currentRoom) {
+                log('❌ Not connected or not in a room');
+                return;
+            }
+
+            const leaveMessage = {
+                type: 'leave_room',
+                clientId: clientId,
+                videoSource: '',
+                room: currentRoom
+            };
+
+            mqttClient.publish(`webrtc/room/${currentRoom}`, JSON.stringify(leaveMessage));
+
+            // Also send leaveVideo message (new structure)
+            const leaveVideoMsg = {
+                type: 'leaveVideo',
+                clientId: clientId,
+                videoSource: ''
+            };
+            mqttClient.publish(`webrtc/room/${currentRoom}`, JSON.stringify(leaveVideoMsg));
+
+            if (roomTopic) {
+                mqttClient.unsubscribe(roomTopic);
+            }
+
+            setStatus('Left room: ' + currentRoom, true);
+            log('✅ Left room: ' + currentRoom);
+            currentRoom = null;
+            roomTopic = null;
+
+            // Clean up WebRTC connection
+            resetConnection();
+        }
+
+        function resetConnection() {
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+            isNegotiating = false;
+            isInitiator = false;
+            pendingIceCandidates = [];
+
+            document.getElementById('remoteVideo').srcObject = null;
+            updateStates();
+            log('🔄 Connection reset');
+        }
+
+        function onMqttMessage(topic, messageString) {
+            let data = {};
+            try {
+                data = JSON.parse(messageString);
+            } catch (e) {
+                log('❌ Invalid JSON: ' + e.message);
+                return;
+            }
+
+            // Ignore your own messages
+            if (data.clientId === clientId) {
+                log('🔄 Ignoring own message: ' + data.type);
+                return;
+            }
+
+            log('📨 Received: ' + data.type + ' from ' + (data.clientId || data.user_id || data.from_user || 'unknown'));
+
+            switch (data.type) {
+                case 'offer':
+                    log('📥 Offer received from ' + (data.clientId || data.user_id));
+                    handleOffer(data);
+                    break;
+                case 'answer':
+                    log('📤 Answer received from ' + (data.clientId || data.user_id));
+                    handleAnswer(data);
+                    break;
+                case 'ice':
+                    handleIce(data);
+                    break;
+                case 'requestVideo':
+                    log('📹 Video requested by ' + (data.clientId || data.user_id));
+                    // handleRequestVideo(data); // implement if needed
+                    break;
+                case 'leaveVideo':
+                    log('👋 Video left by ' + (data.clientId || data.user_id));
+                    // handleLeaveVideo(data); // implement if needed
+                    break;
+                case 'user_joined':
+                    log('👋 User joined: ' + (data.clientId || data.user_id) + ' (' + data.users + ' total)');
+                    break;
+                case 'user_left':
+                    log('👋 User left: ' + (data.clientId || data.user_id) + ' (' + data.users + ' total)');
+                    break;
+                default:
+                    log('❓ Unknown message type: ' + data.type);
+            }
+        }
+
+        // WebRTC logic with proper state management
+        function createPeerConnection() {
+            if (peerConnection) {
+                peerConnection.close();
+            }
+
+            peerConnection = new RTCPeerConnection(rtcConfig);
+
+            peerConnection.onicecandidate = function (event) {
+                if (event.candidate && isConnected && currentRoom) {
+                    const iceMessage = {
+                        type: 'ice',
+                        clientId: clientId,
+                        videoSource: '',
+                        candidate: {
+                            candidate: event.candidate.candidate,
+                            sdpMid: event.candidate.sdpMid,
+                            sdpMLineIndex: event.candidate.sdpMLineIndex
+                        }
+                    };
+
+                    mqttClient.publish(`webrtc/room/${currentRoom}`, JSON.stringify(iceMessage));
+                    log('🧊 Sent ICE candidate');
+                }
+            };
+
+            peerConnection.ontrack = function (event) {
+                log('📺 Received remote stream');
+                remoteStream = event.streams[0];
+                document.getElementById('remoteVideo').srcObject = remoteStream;
+            };
+
+            peerConnection.onconnectionstatechange = function () {
+                log('🔗 Connection state: ' + peerConnection.connectionState);
+                updateStates();
+            };
+
+            peerConnection.oniceconnectionstatechange = function () {
+                log('🧊 ICE connection state: ' + peerConnection.iceConnectionState);
+                updateStates();
+            };
+
+            peerConnection.onsignalingstatechange = function () {
+                log('📡 Signaling state: ' + peerConnection.signalingState);
+                updateStates();
+
+                if (peerConnection.signalingState === 'stable') {
+                    isNegotiating = false;
+                    // Process pending ICE candidates
+                    processPendingIceCandidates();
+                }
+            };
+
+            if (localStream) {
+                localStream.getTracks().forEach(track => {
+                    peerConnection.addTrack(track, localStream);
+                });
+                log('📹 Added local stream to peer connection');
+            }
+
+            log('🔗 Peer connection created');
+        }
+
+        function processPendingIceCandidates() {
+            if (peerConnection && peerConnection.remoteDescription) {
+                pendingIceCandidates.forEach(async (candidateData) => {
+                    try {
+                        const candidate = new RTCIceCandidate({
+                            candidate: candidateData.candidate,
+                            sdpMLineIndex: candidateData.sdpMLineIndex,
+                            sdpMid: candidateData.sdpMid
+                        });
+                        await peerConnection.addIceCandidate(candidate);
+                        log('✅ Added pending ICE candidate');
+                    } catch (error) {
+                        log('❌ Error adding pending ICE candidate: ' + error.message);
+                    }
+                });
+                pendingIceCandidates = [];
+            }
+        }
+
+        function startCall() {
+            const roleInputs = document.querySelectorAll('input[name="role"]');
+            const selectedRole = Array.from(roleInputs).find(input => input.checked).value;
+
+            if (!currentRoom) {
+                log('❌ Join a room first');
+                return;
+            }
+
+            if (selectedRole === 'caller') {
+                log('📞 Starting call as caller...');
+                isInitiator = true;
+                createOffer();
+            } else {
+                isInitiator = false;
+                log('🎯 Waiting for offer from caller...');
+            }
+        }
+
+        async function createOffer() {
+            if (isNegotiating) {
+                log('⏳ Already negotiating, please wait...');
+                return;
+            }
+
+            if (!peerConnection) {
+                createPeerConnection();
+            }
+
+            // Check if we're in the right state
+            if (peerConnection.signalingState !== 'stable') {
+                log('❌ Cannot create offer, signaling state: ' + peerConnection.signalingState);
+                return;
+            }
+
+            try {
+                isNegotiating = true;
+                log('📤 Creating offer...');
+
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+
+                const offerMessage = {
+                    type: 'offer',
+                    clientId: clientId,
+                    videoSource: '',
+                    sdp: offer.sdp
+                };
+
+                mqttClient.publish(`webrtc/room/${currentRoom}`, JSON.stringify(offerMessage));
+                log('📤 Sent offer');
+            } catch (error) {
+                log('❌ Error creating offer: ' + error.message);
+                isNegotiating = false;
+            }
+        }
+
+        async function handleOffer(data) {
+            if (isInitiator) {
+                log('🔄 Ignoring offer (we are the initiator)');
+                return;
+            }
+
+            if (!peerConnection) {
+                createPeerConnection();
+            }
+
+            // Check if we're in the right state to handle an offer
+            if (peerConnection.signalingState !== 'stable') {
+                log('❌ Cannot handle offer, signaling state: ' + peerConnection.signalingState);
+                return;
+            }
+
+            try {
+                isNegotiating = true;
+                log('📥 Handling offer...');
+
+                await peerConnection.setRemoteDescription({ type: 'offer', sdp: data.sdp });
+                log('✅ Set remote offer description');
+
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+
+                const answerMessage = {
+                    type: 'answer',
+                    clientId: clientId,
+                    videoSource: '',
+                    sdp: answer.sdp
+                };
+
+                mqttClient.publish(`webrtc/room/${currentRoom}`, JSON.stringify(answerMessage));
+                log('📤 Sent answer');
+            } catch (error) {
+                log('❌ Error handling offer: ' + error.message);
+                isNegotiating = false;
+            }
+        }
+
+        async function handleAnswer(data) {
+
+            // Only handle answer if we're the initiator
+            if (!isInitiator) {
+                log('🔄 Ignoring answer (we are not the initiator)');
+                return;
+            }
+
+            if (!peerConnection) {
+                log('❌ No peer connection for answer');
+                return;
+            }
+
+            // Check if we're in the right state to handle an answer
+            if (peerConnection.signalingState !== 'have-local-offer') {
+                log('❌ Cannot handle answer, signaling state: ' + peerConnection.signalingState);
+                return;
+            }
+
+            try {
+                log('📥 Handling answer...');
+                await peerConnection.setRemoteDescription({ type: 'answer', sdp: data.sdp });
+                log('✅ Set remote answer description');
+            } catch (error) {
+                log('❌ Error handling answer: ' + error.message);
+            }
+        }
+
+        async function handleIce(data) {
+            if (!peerConnection) {
+                log('❌ No peer connection for ICE candidate');
+                return;
+            }
+
+            // If we don't have remote description yet, queue the candidate
+            if (peerConnection.remoteDescription === null) {
+                log('⏳ Queueing ICE candidate (no remote description yet)');
+                pendingIceCandidates.push(data);
+                return;
+            }
+
+            try {
+                // ICE candidate is now nested under data.candidate
+                const candidate = new RTCIceCandidate(data.candidate);
+                await peerConnection.addIceCandidate(candidate);
+                log('✅ Added ICE candidate');
+            } catch (error) {
+                log('❌ Error adding ICE candidate: ' + error.message);
+            }
+        }
+
+        async function startWebcam() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: true
+                });
+
+                document.getElementById('localVideo').srcObject = localStream;
+                log('✅ Webcam started');
+
+                // If peerConnection exists, add tracks
+                if (peerConnection) {
+                    localStream.getTracks().forEach(track => {
+                        peerConnection.addTrack(track, localStream);
+                    });
+                    log('📹 Added webcam tracks to peer connection');
+                }
+            } catch (err) {
+                log('❌ Error starting webcam: ' + err.message);
+            }
+        }
+
+        // Initialize when page loads
+        window.addEventListener('load', () => {
+            log('🚀 Page loaded - ready to connect');
+            updateStates();
+        });
+    </script>
+</body>
+
+</html>

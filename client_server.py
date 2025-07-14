@@ -46,6 +46,11 @@ def oak_websocket_client():
     """Serve the WebSocket client with OAK camera support"""
     return send_file('clients/oak_websocket_client.html')
 
+@app.route('/oak_mqtt')
+def oak_mqtt_client():
+    """Serve the MQTT client with OAK camera support"""
+    return send_file('clients/oak_mqtt_client.html')
+
 @app.route('/diagnostics')
 def diagnostics():
     """Serve the diagnostics page"""
