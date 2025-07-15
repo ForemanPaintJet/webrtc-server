@@ -207,9 +207,9 @@ def main():
     print("=" * 40)
 
     # Create and start bridge
-    bridge = VideoDeviceBridge(port=8766, device_path="/dev/video0")
+    bridge = VideoDeviceBridge(port=8769, device_path="/dev/video0")
 
-    print(f"🌐 Starting WebSocket server on port 8766...")
+    print(f"🌐 Starting WebSocket server on port 8769...")
 
     try:
         asyncio.run(bridge.start_server())
