@@ -17,7 +17,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class VideoDeviceBridge:
-    def __init__(self, port=8766, device_path="/dev/video0"):
+    def __init__(self, port=8769, device_path="/dev/video0"):
         self.port = port
         self.device_path = device_path
         self.clients = set()

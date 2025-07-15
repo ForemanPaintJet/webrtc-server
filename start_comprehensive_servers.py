@@ -64,7 +64,7 @@ class ComprehensiveOAKServer:
         
         # Check if required files exist
         required_files = [
-            # 'oak_camera_bridge.py',
+            'oak_camera_bridge.py',
             'video_device_bridge.py',
             'websocket_server.py', 
             'video_file_bridge.py',
