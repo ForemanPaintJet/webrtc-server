@@ -994,7 +994,7 @@
             smartLog('🔗 Connecting to signaling server...');
             updateStatus('Connecting to server...', 'connecting');
 
-            signalingWs = new WebSocket('ws://localhost:8765');
+            signalingWs = new WebSocket('ws://${window.location.hostname}:8765');
 
             signalingWs.onopen = function () {
                 smartLog('✅ Connected to signaling server');
@@ -1158,7 +1158,7 @@
         function checkOAKAvailability() {
             log('🔶 Checking OAK camera availability...');
 
-            const testWs = new WebSocket('ws://localhost:8766');
+            const testWs = new WebSocket('ws://${window.location.hostname}:8766');
 
             testWs.onopen = function () {
                 log('✅ OAK camera bridge is available');
@@ -1187,7 +1187,7 @@
             log('🔶 Connecting to OAK camera...');
             updateOAKStatus('Connecting...', 'connecting');
 
-            oakWs = new WebSocket('ws://localhost:8766');
+            oakWs = new WebSocket('ws://${window.location.hostname}:8766');
 
             oakWs.onopen = function () {
                 log('✅ Connected to OAK camera bridge');
@@ -2534,7 +2534,7 @@
         function checkVideoFileAvailability() {
             smartLog('📄 Checking Video File bridge availability...');
 
-            const testWs = new WebSocket('ws://localhost:8768');
+            const testWs = new WebSocket('ws://${window.location.hostname}:8768');
 
             // Set a timeout to close connection if no response
             const timeout = setTimeout(() => {
@@ -2674,7 +2674,7 @@
             updateVideoFileStatus('Connecting...', 'connecting');
 
             return new Promise((resolve, reject) => {
-                videoFileWs = new WebSocket('ws://localhost:8768');
+                videoFileWs = new WebSocket('ws://${window.location.hostname}:8768');
 
                 videoFileWs.onopen = function () {
                     smartLog('✅ Connected to Video File bridge');
