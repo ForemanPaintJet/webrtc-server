@@ -31,6 +31,19 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 class ComprehensiveOAKServer:
+    def start_video_device_bridge(self):
+        """Start the Video Device bridge"""
+        logger.info("🎥 Starting Video Device Bridge...")
+        try:
+            proc = subprocess.Popen([
+                sys.executable, 'video_device_bridge.py', '--port', '8769'
+            ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            self.processes['video_device_bridge'] = proc
+            logger.info("✅ Video Device Bridge started (port 8769)")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Failed to start Video Device Bridge: {e}")
+            return False
     def __init__(self, video_file=None):
         self.processes = {}
         self.running = False
@@ -167,6 +180,7 @@ class ComprehensiveOAKServer:
         servers = [
             ('OAK Camera Bridge', self.start_oak_camera_bridge),
             ('WebSocket Signaling Server', self.start_websocket_server),
+            ('Video Device Bridge', self.start_video_device_bridge),
             ('Video File Bridge', self.start_video_file_bridge),
             ('HTTP Server', self.start_http_server)
         ]
@@ -187,8 +201,9 @@ class ComprehensiveOAKServer:
         logger.info("")
         logger.info("📊 Server Status:")
         logger.info("  🔶 OAK Camera Bridge:       ws://localhost:8766")
-        logger.info("  🌐 WebSocket Signaling:     ws://localhost:8765") 
-        logger.info("   Video File Bridge:       ws://localhost:8768")
+        logger.info("  🌐 WebSocket Signaling:     ws://localhost:8765")
+        logger.info("  🎥 Video Device Bridge:     ws://localhost:8769")
+        logger.info("  📄 Video File Bridge:       ws://localhost:8768")
         logger.info("  📁 HTTP Client Server:      http://localhost:8000")
         logger.info("")
         logger.info("🎯 Open client: http://localhost:8000/clients/oak_websocket_client.html")
@@ -197,6 +212,7 @@ class ComprehensiveOAKServer:
         logger.info("🔧 Available Sources:")
         logger.info("  • Regular webcam: Select from detected cameras")
         logger.info("  • OAK Camera: Connect to DepthAI device")
+        logger.info("  • Video Device: Standard webcam at /dev/video0")
         logger.info("  • Video Files: Choose dynamically from web interface")
         logger.info("")
         logger.info("🔧 Available Streaming Technologies:")
