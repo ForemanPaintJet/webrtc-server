@@ -826,16 +826,16 @@
         log(`[VideoDeviceWS] Received message: ${event.data instanceof Blob ? 'Blob' : event.data}`);
         if (event.data instanceof Blob) {
             log(`[VideoDeviceWS] Received frame blob, size: ${event.data.size} bytes, isVideoDeviceActive=${isVideoDeviceActive}`);
-            if (isVideoDeviceActive) {
+            //if (isVideoDeviceActive) {
                 try {
                     displayVideoDeviceFrame(event.data);
                     log('[VideoDeviceWS] displayVideoDeviceFrame called');
                 } catch (err) {
                     log(`❌ Error displaying Video Device frame: ${err}`);
                 }
-            } else {
-                log('[VideoDeviceWS] Frame received but isVideoDeviceActive is false, skipping.');
-            }
+            //} else {
+              //  log('[VideoDeviceWS] Frame received but isVideoDeviceActive is false, skipping.');
+            //}
         } else {
             try {
                 const data = JSON.parse(event.data);
