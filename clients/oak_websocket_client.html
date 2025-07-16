@@ -3142,7 +3142,7 @@ function connectVideoDeviceBridge() {
         return;
     }
     smartLog('Connecting to Video Device WebSocket...');
-    window.videoDeviceWs = new WebSocket(`ws://${window.location.hostname}:8780`);
+    window.videoDeviceWs = new WebSocket(`ws://${window.location.hostname}:8769`);
     window.videoDeviceWs.onopen = function () {
         smartLog('✅ Video Device WebSocket connected. Frames will display automatically.');
         // Optionally update UI here
