@@ -809,39 +809,57 @@
         }
 
         function connectVideoDevice() {
-            log('🎥 Connecting to Video Device bridge...');
-            updateVideoDeviceStatus('Connecting...', 'connecting');
-            videoDeviceWs = new WebSocket(`ws://${window.location.hostname}:8769`);
-            videoDeviceWs.onopen = function () {
-                log('✅ Connected to Video Device bridge');
-                isVideoDeviceConnected = true;
-                isVideoDeviceActive = false;
-                updateVideoDeviceStatus('Connected (Ready)', 'connected');
-                document.getElementById('videoDeviceBtn').textContent = '🎥 Disconnect Video Device';
-                document.getElementById('videoDeviceBtn').classList.add('active');
-            };
-            videoDeviceWs.onmessage = function (event) {
-                if (event.data instanceof Blob && isVideoDeviceActive) {
+    log('🎥 Connecting to Video Device bridge...');
+    updateVideoDeviceStatus('Connecting...', 'connecting');
+    videoDeviceWs = new WebSocket(`ws://${window.location.hostname}:8769`);
+
+    videoDeviceWs.onopen = function () {
+        log('✅ Connected to Video Device bridge (WebSocket open)');
+        isVideoDeviceConnected = true;
+        isVideoDeviceActive = false;
+        updateVideoDeviceStatus('Connected (Ready)', 'connected');
+        document.getElementById('videoDeviceBtn').textContent = '🎥 Disconnect Video Device';
+        document.getElementById('videoDeviceBtn').classList.add('active');
+    };
+
+    videoDeviceWs.onmessage = function (event) {
+        log(`[VideoDeviceWS] Received message: ${event.data instanceof Blob ? 'Blob' : event.data}`);
+        if (event.data instanceof Blob) {
+            log(`[VideoDeviceWS] Received frame blob, size: ${event.data.size} bytes, isVideoDeviceActive=${isVideoDeviceActive}`);
+            if (isVideoDeviceActive) {
+                try {
                     displayVideoDeviceFrame(event.data);
-                } else {
-                    try {
-                        const data = JSON.parse(event.data);
-                        if (data.type === 'connected') {
-                            log(`🎥 Video Device Bridge: ${data.message}`);
-                            updateVideoDeviceStatus(`Connected (${data.resolution}@${data.fps}fps)`, 'connected');
-                        }
-                    } catch (e) {}
+                    log('[VideoDeviceWS] displayVideoDeviceFrame called');
+                } catch (err) {
+                    log(`❌ Error displaying Video Device frame: ${err}`);
                 }
-            };
-            videoDeviceWs.onclose = function () {
-                log('🔌 Video Device bridge disconnected');
-                disconnectVideoDevice();
-            };
-            videoDeviceWs.onerror = function (error) {
-                log(`❌ Video Device bridge error: ${error}`);
-                updateVideoDeviceStatus('Connection error', 'error');
-                disconnectVideoDevice();
-            };
+            } else {
+                log('[VideoDeviceWS] Frame received but isVideoDeviceActive is false, skipping.');
+            }
+        } else {
+            try {
+                const data = JSON.parse(event.data);
+                log(`[VideoDeviceWS] Received JSON: ${JSON.stringify(data)}`);
+                if (data.type === 'connected') {
+                    log(`🎥 Video Device Bridge: ${data.message}`);
+                    updateVideoDeviceStatus(`Connected (${data.resolution}@${data.fps}fps)`, 'connected');
+                }
+            } catch (e) {
+                log(`❌ Error parsing Video Device message: ${e}, content: ${event.data}`);
+            }
+        }
+    };
+
+    videoDeviceWs.onclose = function (event) {
+        log(`🔌 Video Device bridge disconnected (code: ${event.code}, reason: ${event.reason})`);
+        disconnectVideoDevice();
+    };
+
+    videoDeviceWs.onerror = function (error) {
+        log(`❌ Video Device bridge error: ${error && error.message ? error.message : error}`);
+        updateVideoDeviceStatus('Connection error', 'error');
+        disconnectVideoDevice();
+    };
         }
 
         function disconnectVideoDevice() {
@@ -860,26 +878,31 @@
         }
 
         function displayVideoDeviceFrame(blob) {
-            if (!isVideoDeviceActive) return;
-            const frameStartTime = performance.now();
-            const img = new Image();
-            img.onload = function () {
-                if (oakCanvas.width !== img.width || oakCanvas.height !== img.height) {
-                    oakCanvas.width = img.width;
-                    oakCanvas.height = img.height;
-                    log(`🎥 Video Device canvas resized to ${img.width}x${img.height}`);
-                }
-                oakCtx.drawImage(img, 0, 0);
-                URL.revokeObjectURL(img.src);
-                const frameEndTime = performance.now();
-                const processingTime = frameEndTime - frameStartTime;
-                recordPerformance('video-device', processingTime);
-            };
-            img.onerror = function () {
-                log('❌ Error loading Video Device frame');
-                URL.revokeObjectURL(img.src);
-            };
-            img.src = URL.createObjectURL(blob);
+    if (!isVideoDeviceActive) {
+        log('[displayVideoDeviceFrame] isVideoDeviceActive is false, skipping frame.');
+        return;
+    }
+    log('[displayVideoDeviceFrame] Called, processing frame blob...');
+    const frameStartTime = performance.now();
+    const img = new Image();
+    img.onload = function () {
+        if (oakCanvas.width !== img.width || oakCanvas.height !== img.height) {
+            oakCanvas.width = img.width;
+            oakCanvas.height = img.height;
+            log(`🎥 Video Device canvas resized to ${img.width}x${img.height}`);
+        }
+        oakCtx.drawImage(img, 0, 0);
+        URL.revokeObjectURL(img.src);
+        const frameEndTime = performance.now();
+        const processingTime = frameEndTime - frameStartTime;
+        recordPerformance('video-device', processingTime);
+        log(`[displayVideoDeviceFrame] Frame drawn, processingTime=${processingTime.toFixed(2)}ms`);
+    };
+    img.onerror = function () {
+        log('❌ Error loading Video Device frame');
+        URL.revokeObjectURL(img.src);
+    };
+    img.src = URL.createObjectURL(blob);
         }
 
         function updateVideoDeviceStatus(status, state = '') {
@@ -1593,6 +1616,7 @@
                         throw new Error('Failed to start Video Device stream with any method');
                     }
                     smartLog('✅ Video Device stream ready for WebRTC');
+                    
         async function tryVideoDeviceWebCodecsStream() {
             try {
                 if (!window.MediaStreamTrackGenerator || !window.VideoFrame) {
