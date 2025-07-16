@@ -1118,7 +1118,8 @@
 
             document.getElementById('muteBtn').disabled = localStream === null;
             document.getElementById('regularCameraBtn').disabled = availableCameras.length === 0;
-            document.getElementById('videoDeviceBtn').disabled = !isVideoDeviceConnected;
+            // Enable Video Device button if bridge is available, not just if already connected
+            document.getElementById('videoDeviceBtn').disabled = !(isVideoDeviceAvailable || isVideoDeviceConnected);
 
             // Video file button: enabled when a file is selected
             const selectedVideoFile = document.getElementById('videoFileSelect').value;
@@ -1589,23 +1590,51 @@
 
                     smartLog('✅ Video file stream ready for WebRTC');
 
+
                 } else if (isVideoDeviceConnected && !localStream) {
                     // Handle Video Device streaming
                     smartLog(`🎥 Starting Video Device streaming with ${streamingTechCapabilities[selectedStreamingTech].name}...`);
                     isVideoDeviceActive = true;
+                    // Diagnostics: check videoDeviceWs and oakCanvas before streaming
+                    if (!window.videoDeviceWs) {
+                        smartLog('❌ videoDeviceWs is undefined. Cannot start streaming.');
+                        alert('Video Device WebSocket is not initialized. Please connect the Video Device bridge.');
+                        isVideoDeviceActive = false;
+                        return;
+                    }
+                    smartLog(`ℹ️ videoDeviceWs.readyState: ${videoDeviceWs.readyState}`);
+                    if (videoDeviceWs.readyState !== 1) {
+                        smartLog('❌ Video Device WebSocket is not open. Cannot start streaming.');
+                        alert('Video Device WebSocket is not connected. Please connect the Video Device bridge.');
+                        isVideoDeviceActive = false;
+                        return;
+                    }
+                    if (!oakCanvas) {
+                        smartLog('❌ oakCanvas is not available. Cannot start Video Device streaming.');
+                        alert('Internal error: oakCanvas is not available.');
+                        isVideoDeviceActive = false;
+                        return;
+                    }
+                    smartLog('✅ Diagnostics passed: videoDeviceWs and oakCanvas are available.');
                     let success = false;
+                    let triedWebCodecs = false, triedCanvas = false;
                     switch (selectedStreamingTech) {
                         case 'webcodecs':
+                            triedWebCodecs = true;
+                            smartLog('🧪 Trying WebCodecs for Video Device...');
                             success = await tryVideoDeviceWebCodecsStream();
                             if (success) {
                                 smartLog('✅ Using WebCodecs for Video Device streaming');
                             } else {
                                 smartLog('❌ WebCodecs failed for Video Device, falling back to Canvas');
+                                triedCanvas = true;
                                 success = await startVideoDeviceCanvasStream();
                             }
                             break;
                         case 'canvas':
                         default:
+                            triedCanvas = true;
+                            smartLog('🧪 Trying Canvas for Video Device...');
                             success = await startVideoDeviceCanvasStream();
                             if (success) {
                                 smartLog('✅ Using Canvas for Video Device streaming');
@@ -1613,6 +1642,16 @@
                             break;
                     }
                     if (!success) {
+                        // Add diagnostics for why it failed
+                        if (triedWebCodecs && !triedCanvas) smartLog('❌ WebCodecs failed and Canvas not attempted');
+                        if (triedCanvas) smartLog('❌ Canvas streaming failed for Video Device');
+                        if (!videoDeviceWs || videoDeviceWs.readyState !== 1) {
+                            smartLog('❌ Video Device WebSocket is not open or not connected');
+                        } else {
+                            smartLog('⚠️ Video Device WebSocket is open, but no frames received or stream setup failed');
+                        }
+                        alert('Failed to start Video Device stream with any method. See logs for details.');
+                        isVideoDeviceActive = false;
                         throw new Error('Failed to start Video Device stream with any method');
                     }
                     smartLog('✅ Video Device stream ready for WebRTC');
