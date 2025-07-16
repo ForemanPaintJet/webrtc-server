@@ -762,6 +762,9 @@
     <!-- Hidden canvas for video file frames -->
     <canvas id="videoFileCanvas" style="display: none;"></canvas>
 
+    <!-- Add this canvas to your HTML where you want the video to appear: -->
+    <canvas id="videoDeviceCanvas" width="640" height="480" style="background:#222;"></canvas>
+
     <script>
         // Global variables
         let signalingWs = null;
@@ -2795,7 +2798,7 @@
                         populateVideoFileSelect(data.files);
                         testWs.close(); // Close after receiving the file list
                     } else if (data.type === 'connected') {
-                        smartLog(`✅ Video bridge connected: ${data.message}`);
+                        smartLog(`📄 Video Bridge: ${data.message}`);
                         // Continue waiting for file list
                     }
                 } catch (e) {
@@ -3150,12 +3153,20 @@ function connectVideoDeviceBridge() {
     window.videoDeviceWs.onmessage = function (event) {
         if (event.data instanceof Blob) {
             const url = URL.createObjectURL(event.data);
-            const videoEl = document.getElementById('localVideo');
-            videoEl.src = url;
-            videoEl.play();
-            videoEl.onloadedmetadata = function () {
+            const img = new Image();
+            img.onload = function () {
+                const canvas = document.getElementById('videoDeviceCanvas');
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                // Resize canvas if needed
+                if (canvas.width !== img.width || canvas.height !== img.height) {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                }
+                ctx.drawImage(img, 0, 0);
                 URL.revokeObjectURL(url);
             };
+            img.src = url;
         }
     };
     window.videoDeviceWs.onclose = function () {
