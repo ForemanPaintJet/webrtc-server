@@ -763,7 +763,7 @@
     <canvas id="videoFileCanvas" style="display: none;"></canvas>
 
     <!-- Add this canvas to your HTML where you want the video to appear: -->
-    <canvas id="videoDeviceCanvas" width="640" height="480" style="background:#222;"></canvas>
+    <!-- <canvas id="videoDeviceCanvas" width="640" height="480" style="background:#222;"></canvas> -->
 
     <script>
         // Global variables
@@ -3155,7 +3155,7 @@ function connectVideoDeviceBridge() {
             const url = URL.createObjectURL(event.data);
             const img = new Image();
             img.onload = function () {
-                const canvas = document.getElementById('videoDeviceCanvas');
+                const canvas = document.getElementById('oakCanvas');
                 if (!canvas) return;
                 const ctx = canvas.getContext('2d');
                 // Resize canvas if needed
