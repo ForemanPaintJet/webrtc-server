@@ -878,10 +878,10 @@
         }
 
     function displayVideoDeviceFrame(blob) {
-    if (!isVideoDeviceActive) {
-        log('[displayVideoDeviceFrame] isVideoDeviceActive is false, skipping frame.');
-        return;
-    }
+    //if (!isVideoDeviceActive) {
+      //  log('[displayVideoDeviceFrame] isVideoDeviceActive is false, skipping frame.');
+       // return;
+    //}
     log('[displayVideoDeviceFrame] Called, processing frame blob...');
     const frameStartTime = performance.now();
     const img = new Image();
