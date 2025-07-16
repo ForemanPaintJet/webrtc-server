@@ -1005,6 +1005,9 @@
 
                 console.log('✅ Initialization complete');
                 checkVideoDeviceAvailability();
+
+                // Connect Video Device bridge immediately (or call from button)
+    connectVideoDeviceBridge();
             } catch (error) {
                 console.error('❌ Error during initialization:', error);
                 alert('Error initializing app: ' + error.message);
@@ -1680,7 +1683,7 @@
             }
         }
 
-        async function startVideoDeviceCanvasStream() {
+    async function startVideoDeviceCanvasStream() {
             try {
                 const canvasStream = oakCanvas.captureStream(30);
                 const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
@@ -2382,40 +2385,6 @@
                 perf.frameCount = 0;
                 perf.lastFrameTime = now;
             }
-        }
-
-        async function createCanvasComparisonStream(tech) {
-            const canvas = comparisonCanvases[tech];
-            const ctx = canvas.getContext('2d');
-            const stream = canvas.captureStream(30);
-
-            // Handle frames with standard Canvas processing
-            const originalOnMessage = oakWs.onmessage;
-            oakWs.onmessage = function (event) {
-                if (originalOnMessage) originalOnMessage(event);
-
-                if (event.data instanceof Blob && isComparisonMode) {
-                    const frameStartTime = performance.now();
-                    const img = new Image();
-
-                    img.onload = function () {
-                        if (canvas.width !== img.width || canvas.height !== img.height) {
-                            canvas.width = img.width;
-                            canvas.height = img.height;
-                        }
-
-                        ctx.drawImage(img, 0, 0);
-                        URL.revokeObjectURL(img.src);
-
-                        const processingTime = performance.now() - frameStartTime;
-                        updateComparisonPerformance(tech, processingTime);
-                    };
-
-                    img.src = URL.createObjectURL(event.data);
-                }
-            };
-
-            return stream;
         }
 
         function updatePerformanceGraphs(tech, fps, latency) {
@@ -3165,6 +3134,40 @@
                 return false;
             }
         }
+
+        // --- Video Device Bridge: display frames immediately on connect ---
+function connectVideoDeviceBridge() {
+    if (window.videoDeviceWs && window.videoDeviceWs.readyState === 1) {
+        smartLog('Video Device WebSocket already connected.');
+        return;
+    }
+    smartLog('Connecting to Video Device WebSocket...');
+    window.videoDeviceWs = new WebSocket(`ws://${window.location.hostname}:8780`);
+    window.videoDeviceWs.onopen = function () {
+        smartLog('✅ Video Device WebSocket connected. Frames will display automatically.');
+        // Optionally update UI here
+    };
+    window.videoDeviceWs.onmessage = function (event) {
+        if (event.data instanceof Blob) {
+            const url = URL.createObjectURL(event.data);
+            const videoEl = document.getElementById('localVideo');
+            videoEl.src = url;
+            videoEl.play();
+            videoEl.onloadedmetadata = function () {
+                URL.revokeObjectURL(url);
+            };
+        }
+    };
+    window.videoDeviceWs.onclose = function () {
+        smartLog('Video Device WebSocket closed.');
+    };
+    window.videoDeviceWs.onerror = function (err) {
+        smartLog('❌ Video Device WebSocket error: ' + err);
+    };
+}
+
+// Call this on page load or when user clicks connect
+window.connectVideoDeviceBridge = connectVideoDeviceBridge;
 
     </script>
 </body>
