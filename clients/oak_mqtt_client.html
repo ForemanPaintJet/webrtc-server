@@ -195,7 +195,7 @@
 
             try {
                 // Connect to localhost broker with WebSocket support
-                mqttClient = mqtt.connect('ws://localhost:8080/mqtt', {
+                mqttClient = mqtt.connect('ws://192.168.1.122:8080/mqtt', {
                     clientId: clientId,
                     clean: true,
                     connectTimeout: 4000,
@@ -240,8 +240,8 @@
                 return;
             }
 
-            // Subscribe to personal topic for this room
-            roomTopic = `webrtc/room/${currentRoom}`;
+            // Subscribe to camera system streaming input topic
+            roomTopic = 'camera_system/streaming/in';
 
             mqttClient.subscribe(roomTopic, (error) => {
                 if (error) {
@@ -259,7 +259,7 @@
                 room: currentRoom
             };
 
-            mqttClient.publish(`webrtc/room/${currentRoom}`, JSON.stringify(joinMessage), (error) => {
+            mqttClient.publish('camera_system/streaming/out', JSON.stringify(joinMessage), (error) => {
                 if (error) {
                     log('❌ Publish error: ' + error.message);
                 } else {
@@ -282,7 +282,7 @@
                 room: currentRoom
             };
 
-            mqttClient.publish(`webrtc/room/${currentRoom}`, JSON.stringify(leaveMessage));
+            mqttClient.publish('camera_system/streaming/out', JSON.stringify(leaveMessage));
 
             // Also send leaveVideo message (new structure)
             const leaveVideoMsg = {
@@ -290,7 +290,7 @@
                 clientId: clientId,
                 videoSource: ''
             };
-            mqttClient.publish(`webrtc/room/${currentRoom}`, JSON.stringify(leaveVideoMsg));
+            mqttClient.publish('camera_system/streaming/out', JSON.stringify(leaveVideoMsg));
 
             if (roomTopic) {
                 mqttClient.unsubscribe(roomTopic);
@@ -320,18 +320,30 @@
         }
 
         function onMqttMessage(topic, messageString) {
+            log('🔍 Raw MQTT message received on topic: ' + topic);
+            log('🔍 Message length: ' + messageString.length);
+
             let data = {};
             try {
                 data = JSON.parse(messageString);
+                log('🔍 Parsed message type: ' + data.type);
+                log('🔍 Message sender: ' + (data.clientId || data.user_id || data.from_user || 'unknown'));
             } catch (e) {
                 log('❌ Invalid JSON: ' + e.message);
+                log('🔍 Raw message: ' + messageString.substring(0, 200) + '...');
                 return;
             }
 
-            // Ignore your own messages
+            // Ignore your own messages, but be more specific about what to ignore
             if (data.clientId === clientId) {
-                log('🔄 Ignoring own message: ' + data.type);
-                return;
+                log('🔄 Received own message: ' + data.type + ' from self');
+                // Only ignore certain message types from self to prevent loops
+                if (data.type === 'offer' || data.type === 'ice' || data.type === 'join_room' || data.type === 'leave_room' || data.type === 'leaveVideo' || data.type === 'requestVideo') {
+                    log('🔄 Ignoring own message: ' + data.type);
+                    return;
+                }
+                // Allow answer messages from self in case they're echoed back but needed
+                log('🔄 Processing own message: ' + data.type + ' (not filtered)');
             }
 
             log('📨 Received: ' + data.type + ' from ' + (data.clientId || data.user_id || data.from_user || 'unknown'));
@@ -343,14 +355,17 @@
                     break;
                 case 'answer':
                     log('📤 Answer received from ' + (data.clientId || data.user_id));
+                    log('🔍 About to call handleAnswer...');
                     handleAnswer(data);
+                    log('🔍 handleAnswer call completed');
                     break;
                 case 'ice':
+                    log('🧊 ICE candidate received from ' + (data.clientId || data.user_id));
                     handleIce(data);
                     break;
                 case 'requestVideo':
                     log('📹 Video requested by ' + (data.clientId || data.user_id));
-                    // handleRequestVideo(data); // implement if needed
+                    handleRequestVideo(data);
                     break;
                 case 'leaveVideo':
                     log('👋 Video left by ' + (data.clientId || data.user_id));
@@ -364,6 +379,7 @@
                     break;
                 default:
                     log('❓ Unknown message type: ' + data.type);
+                    log('🔍 Full unknown message: ' + JSON.stringify(data));
             }
         }
 
@@ -388,7 +404,7 @@
                         }
                     };
 
-                    mqttClient.publish(`webrtc/room/${currentRoom}`, JSON.stringify(iceMessage));
+                    mqttClient.publish('camera_system/streaming/out', JSON.stringify(iceMessage));
                     log('🧊 Sent ICE candidate');
                 }
             };
@@ -469,12 +485,17 @@
         }
 
         async function createOffer() {
+            log('🔍 createOffer called, current state check...');
+            log('🔍 isNegotiating: ' + isNegotiating);
+            log('🔍 peerConnection exists: ' + (peerConnection ? 'yes' : 'no'));
+
             if (isNegotiating) {
                 log('⏳ Already negotiating, please wait...');
                 return;
             }
 
             if (!peerConnection) {
+                log('🔍 Creating new peer connection...');
                 createPeerConnection();
             }
 
@@ -487,9 +508,13 @@
             try {
                 isNegotiating = true;
                 log('📤 Creating offer...');
+                log('🔍 Setting isNegotiating to true');
 
                 const offer = await peerConnection.createOffer();
+                log('🔍 Offer created, SDP length: ' + offer.sdp.length);
+
                 await peerConnection.setLocalDescription(offer);
+                log('🔍 Local description set, new signaling state: ' + peerConnection.signalingState);
 
                 const offerMessage = {
                     type: 'offer',
@@ -498,21 +523,32 @@
                     sdp: offer.sdp
                 };
 
-                mqttClient.publish(`webrtc/room/${currentRoom}`, JSON.stringify(offerMessage));
-                log('📤 Sent offer');
+                mqttClient.publish('camera_system/streaming/out', JSON.stringify(offerMessage));
+                log('📤 Sent offer via MQTT');
+                log('🔍 Now waiting for answer...');
             } catch (error) {
                 log('❌ Error creating offer: ' + error.message);
+                log('🔍 Error stack: ' + error.stack);
                 isNegotiating = false;
             }
         }
 
         async function handleOffer(data) {
+            log('🔍 handleOffer called with data from: ' + (data.clientId || data.user_id || 'unknown'));
+
+            // Skip if this is our own offer message echoed back
+            if (data.clientId === clientId) {
+                log('🔄 Skipping own offer message');
+                return;
+            }
+
             if (isInitiator) {
                 log('🔄 Ignoring offer (we are the initiator)');
                 return;
             }
 
             if (!peerConnection) {
+                log('🔍 Creating peer connection for offer handling...');
                 createPeerConnection();
             }
 
@@ -522,15 +558,23 @@
                 return;
             }
 
+            // Prevent duplicate offer processing
+            if (peerConnection.remoteDescription) {
+                log('⚠️ Remote description already set, ignoring duplicate offer');
+                return;
+            }
+
             try {
                 isNegotiating = true;
                 log('📥 Handling offer...');
+                log('🔍 Offer SDP length: ' + (data.sdp ? data.sdp.length : 'undefined'));
 
                 await peerConnection.setRemoteDescription({ type: 'offer', sdp: data.sdp });
                 log('✅ Set remote offer description');
 
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
+                log('🔍 Created and set local answer description');
 
                 const answerMessage = {
                     type: 'answer',
@@ -539,15 +583,29 @@
                     sdp: answer.sdp
                 };
 
-                mqttClient.publish(`webrtc/room/${currentRoom}`, JSON.stringify(answerMessage));
-                log('📤 Sent answer');
+                mqttClient.publish('camera_system/streaming/out', JSON.stringify(answerMessage));
+                log('📤 Sent answer via MQTT');
             } catch (error) {
                 log('❌ Error handling offer: ' + error.message);
+                log('🔍 Error stack: ' + error.stack);
                 isNegotiating = false;
             }
         }
 
         async function handleAnswer(data) {
+            log('🔍 handleAnswer called with data from: ' + (data.clientId || data.user_id || 'unknown'));
+            log('🔍 Current isInitiator state: ' + isInitiator);
+            log('🔍 Current peerConnection exists: ' + (peerConnection ? 'yes' : 'no'));
+
+            if (peerConnection) {
+                log('🔍 Current signaling state: ' + peerConnection.signalingState);
+            }
+
+            // Skip if this is our own answer message echoed back
+            if (data.clientId === clientId) {
+                log('🔄 Skipping own answer message');
+                return;
+            }
 
             // Only handle answer if we're the initiator
             if (!isInitiator) {
@@ -563,19 +621,37 @@
             // Check if we're in the right state to handle an answer
             if (peerConnection.signalingState !== 'have-local-offer') {
                 log('❌ Cannot handle answer, signaling state: ' + peerConnection.signalingState);
+                log('🔍 Expected state: have-local-offer, actual state: ' + peerConnection.signalingState);
+                return;
+            }
+
+            // Prevent duplicate answer processing
+            if (peerConnection.remoteDescription) {
+                log('⚠️ Remote description already set, ignoring duplicate answer');
                 return;
             }
 
             try {
                 log('📥 Handling answer...');
+                log('🔍 Answer SDP length: ' + (data.sdp ? data.sdp.length : 'undefined'));
                 await peerConnection.setRemoteDescription({ type: 'answer', sdp: data.sdp });
-                log('✅ Set remote answer description');
+                log('✅ Set remote answer description successfully');
+                log('🔍 New signaling state after setting answer: ' + peerConnection.signalingState);
             } catch (error) {
                 log('❌ Error handling answer: ' + error.message);
+                log('🔍 Error stack: ' + error.stack);
             }
         }
 
         async function handleIce(data) {
+            log('🔍 handleIce called with data from: ' + (data.clientId || data.user_id || 'unknown'));
+
+            // Skip if this is our own ICE message echoed back
+            if (data.clientId === clientId) {
+                log('🔄 Skipping own ICE candidate message');
+                return;
+            }
+
             if (!peerConnection) {
                 log('❌ No peer connection for ICE candidate');
                 return;
@@ -584,7 +660,7 @@
             // If we don't have remote description yet, queue the candidate
             if (peerConnection.remoteDescription === null) {
                 log('⏳ Queueing ICE candidate (no remote description yet)');
-                pendingIceCandidates.push(data);
+                pendingIceCandidates.push(data.candidate);
                 return;
             }
 
@@ -595,7 +671,31 @@
                 log('✅ Added ICE candidate');
             } catch (error) {
                 log('❌ Error adding ICE candidate: ' + error.message);
+                log('🔍 ICE candidate data: ' + JSON.stringify(data.candidate));
             }
+        }
+
+        async function handleRequestVideo(data) {
+            log('📹 Handling video request from ' + (data.clientId || 'unknown'));
+
+            // Ensure we have local video stream before creating offer
+            if (!localStream) {
+                log('⚠️ No local stream available, starting webcam first...');
+                await startWebcam();
+
+                if (!localStream) {
+                    log('❌ Failed to start webcam, cannot fulfill video request');
+                    return;
+                }
+            }
+
+            // Set as initiator since we're responding to the video request
+            isInitiator = true;
+
+            // Create offer automatically in response to requestVideo
+            await createOffer();
+
+            log('✅ Video request handled, offer sent');
         }
 
         async function startWebcam() {
