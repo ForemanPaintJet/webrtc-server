@@ -153,6 +153,7 @@
         let isInitiator = false;
         let isNegotiating = false;
         let pendingIceCandidates = [];
+        let targetClientId = '';
 
         // Fixed RTCPeerConnection configuration
         let rtcConfig = {
@@ -195,7 +196,7 @@
 
             try {
                 // Connect to localhost broker with WebSocket support
-                mqttClient = mqtt.connect('ws://192.168.1.122:8080/mqtt', {
+                mqttClient = mqtt.connect('ws://192.168.1.120:8080/mqtt', {
                     clientId: clientId,
                     clean: true,
                     connectTimeout: 4000,
@@ -327,7 +328,7 @@
             try {
                 data = JSON.parse(messageString);
                 log('🔍 Parsed message type: ' + data.type);
-                log('🔍 Message sender: ' + (data.clientId || data.user_id || data.from_user || 'unknown'));
+                log('🔍 Message sender: ' + (data.from || data.clientId || data.user_id || data.from_user || 'unknown'));
             } catch (e) {
                 log('❌ Invalid JSON: ' + e.message);
                 log('🔍 Raw message: ' + messageString.substring(0, 200) + '...');
@@ -335,7 +336,7 @@
             }
 
             // Ignore your own messages, but be more specific about what to ignore
-            if (data.clientId === clientId) {
+            if (data.from === clientId || data.clientId === clientId) {
                 log('🔄 Received own message: ' + data.type + ' from self');
                 // Only ignore certain message types from self to prevent loops
                 if (data.type === 'offer' || data.type === 'ice' || data.type === 'join_room' || data.type === 'leave_room' || data.type === 'leaveVideo' || data.type === 'requestVideo') {
@@ -346,36 +347,36 @@
                 log('🔄 Processing own message: ' + data.type + ' (not filtered)');
             }
 
-            log('📨 Received: ' + data.type + ' from ' + (data.clientId || data.user_id || data.from_user || 'unknown'));
+            log('📨 Received: ' + data.type + ' from ' + (data.from || data.clientId || data.user_id || data.from_user || 'unknown'));
 
             switch (data.type) {
                 case 'offer':
-                    log('📥 Offer received from ' + (data.clientId || data.user_id));
+                    log('📥 Offer received from ' + (data.from || data.clientId || data.user_id));
                     handleOffer(data);
                     break;
                 case 'answer':
-                    log('📤 Answer received from ' + (data.clientId || data.user_id));
+                    log('📤 Answer received from ' + (data.from || data.clientId || data.user_id));
                     log('🔍 About to call handleAnswer...');
                     handleAnswer(data);
                     log('🔍 handleAnswer call completed');
                     break;
                 case 'ice':
-                    log('🧊 ICE candidate received from ' + (data.clientId || data.user_id));
+                    log('🧊 ICE candidate received from ' + (data.from || data.clientId || data.user_id));
                     handleIce(data);
                     break;
                 case 'requestVideo':
-                    log('📹 Video requested by ' + (data.clientId || data.user_id));
+                    log('📹 Video requested by ' + (data.from || data.clientId || data.user_id));
                     handleRequestVideo(data);
                     break;
                 case 'leaveVideo':
-                    log('👋 Video left by ' + (data.clientId || data.user_id));
+                    log('👋 Video left by ' + (data.from || data.clientId || data.user_id));
                     // handleLeaveVideo(data); // implement if needed
                     break;
                 case 'user_joined':
-                    log('👋 User joined: ' + (data.clientId || data.user_id) + ' (' + data.users + ' total)');
+                    log('👋 User joined: ' + (data.from || data.clientId || data.user_id) + ' (' + data.users + ' total)');
                     break;
                 case 'user_left':
-                    log('👋 User left: ' + (data.clientId || data.user_id) + ' (' + data.users + ' total)');
+                    log('👋 User left: ' + (data.from || data.clientId || data.user_id) + ' (' + data.users + ' total)');
                     break;
                 default:
                     log('❓ Unknown message type: ' + data.type);
@@ -395,7 +396,8 @@
                 if (event.candidate && isConnected && currentRoom) {
                     const iceMessage = {
                         type: 'ice',
-                        clientId: clientId,
+                        from: clientId,
+                        to: targetClientId,
                         videoSource: '',
                         candidate: {
                             candidate: event.candidate.candidate,
@@ -518,7 +520,8 @@
 
                 const offerMessage = {
                     type: 'offer',
-                    clientId: clientId,
+                    from: clientId,
+                    to: targetClientId,
                     videoSource: '',
                     sdp: offer.sdp
                 };
@@ -534,10 +537,10 @@
         }
 
         async function handleOffer(data) {
-            log('🔍 handleOffer called with data from: ' + (data.clientId || data.user_id || 'unknown'));
+            log('🔍 handleOffer called with data from: ' + (data.from || data.clientId || data.user_id || 'unknown'));
 
             // Skip if this is our own offer message echoed back
-            if (data.clientId === clientId) {
+            if (data.from === clientId || data.clientId === clientId) {
                 log('🔄 Skipping own offer message');
                 return;
             }
@@ -546,6 +549,9 @@
                 log('🔄 Ignoring offer (we are the initiator)');
                 return;
             }
+
+            // Store the target client ID for future signaling messages
+            targetClientId = data.from || data.clientId || '';
 
             if (!peerConnection) {
                 log('🔍 Creating peer connection for offer handling...');
@@ -578,7 +584,8 @@
 
                 const answerMessage = {
                     type: 'answer',
-                    clientId: clientId,
+                    from: clientId,
+                    to: targetClientId,
                     videoSource: '',
                     sdp: answer.sdp
                 };
@@ -593,7 +600,7 @@
         }
 
         async function handleAnswer(data) {
-            log('🔍 handleAnswer called with data from: ' + (data.clientId || data.user_id || 'unknown'));
+            log('🔍 handleAnswer called with data from: ' + (data.from || data.clientId || data.user_id || 'unknown'));
             log('🔍 Current isInitiator state: ' + isInitiator);
             log('🔍 Current peerConnection exists: ' + (peerConnection ? 'yes' : 'no'));
 
@@ -602,7 +609,7 @@
             }
 
             // Skip if this is our own answer message echoed back
-            if (data.clientId === clientId) {
+            if (data.from === clientId || data.clientId === clientId) {
                 log('🔄 Skipping own answer message');
                 return;
             }
@@ -644,10 +651,10 @@
         }
 
         async function handleIce(data) {
-            log('🔍 handleIce called with data from: ' + (data.clientId || data.user_id || 'unknown'));
+            log('🔍 handleIce called with data from: ' + (data.from || data.clientId || data.user_id || 'unknown'));
 
             // Skip if this is our own ICE message echoed back
-            if (data.clientId === clientId) {
+            if (data.from === clientId || data.clientId === clientId) {
                 log('🔄 Skipping own ICE candidate message');
                 return;
             }
@@ -676,7 +683,10 @@
         }
 
         async function handleRequestVideo(data) {
-            log('📹 Handling video request from ' + (data.clientId || 'unknown'));
+            log('📹 Handling video request from ' + (data.from || data.clientId || 'unknown'));
+
+            // Store the target client ID for future signaling messages
+            targetClientId = data.from || data.clientId || '';
 
             // Ensure we have local video stream before creating offer
             if (!localStream) {
